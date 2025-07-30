@@ -27,7 +27,7 @@ func main() {
 			log.Printf("... and %d more plugins", len(plugins)-5)
 			break
 		}
-		log.Printf("Plugin %d: %s (%s) - %d parameters", 
+		log.Printf("Plugin %d: %s (%s) - %d parameters",
 			i+1, plugin.Name, plugin.ManufacturerID, len(plugin.Parameters))
 	}
 
@@ -50,9 +50,9 @@ func main() {
 			break
 		}
 		log.Printf("  %s: %s (%.2f - %.2f, default: %.2f)",
-			param.Identifier, param.DisplayName, 
+			param.Identifier, param.DisplayName,
 			param.MinValue, param.MaxValue, param.DefaultValue)
-		
+
 		if len(param.IndexedValues) > 0 {
 			log.Printf("    Indexed values: %v", param.IndexedValues)
 		}
@@ -66,12 +66,12 @@ func main() {
 			log.Printf("Failed to marshal JSON: %v", err)
 			return
 		}
-		
+
 		if err := os.WriteFile(filename, data, 0644); err != nil {
 			log.Printf("Failed to write file: %v", err)
 			return
 		}
-		
+
 		log.Printf("Full introspection data saved to %s", filename)
 	}
 

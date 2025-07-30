@@ -1,6 +1,6 @@
 # Build and Development Makefile for Rackless
 
-.PHONY: help build wasm dev clean test test-unit test-integration introspection-test compile-objc
+.PHONY: help build wasm dev clean test test-unit test-integration test-bench introspection-test compile-objc
 
 # Default target
 help:
@@ -13,6 +13,7 @@ help:
 	@echo "  test               - Run all tests"
 	@echo "  test-unit          - Run unit tests only"
 	@echo "  test-integration   - Run integration tests"
+	@echo "  test-bench         - Run benchmarks (single iteration)"
 	@echo "  introspection-test - Test AudioUnit introspection"
 	@echo "  clean              - Clean build artifacts"
 	@echo "  css                - Build Tailwind CSS (legacy)"
@@ -55,6 +56,11 @@ test-unit: compile-objc
 test-integration: compile-objc
 	@echo "Running integration tests..."
 	go test -run Integration ./...
+
+# Run benchmarks (single iteration for expensive operations)
+test-bench: compile-objc
+	@echo "Running benchmarks..."
+	go test -bench=. -benchtime=1x ./pkg/introspection
 
 # Test AudioUnit introspection
 introspection-test: compile-objc

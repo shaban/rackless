@@ -8,6 +8,11 @@
 #define VERBOSE_LOGGING 0  // Default to 0 for production, set to 1 for detailed debugging
 #endif
 
+// Timeout for AudioUnit inspection (can be overridden by compiler flags)
+#ifndef INSPECTION_TIMEOUT_SECONDS
+#define INSPECTION_TIMEOUT_SECONDS 0.5  // Quick timeout for plugin initialization - Go handles overall timeout
+#endif
+
 // Conditional logging macros
 #define VERBOSE_LOG(...) do { if (VERBOSE_LOGGING) fprintf(stderr, __VA_ARGS__); } while(0)
 #define PROGRESS_LOG(...) fprintf(stderr, __VA_ARGS__)  // Always show progress
@@ -493,13 +498,13 @@ char *IntrospectAudioUnits() {
 
         PROGRESS_LOG("Waiting for all AudioUnit inspections to complete...\n");
         
-        // Wait with a 30-second timeout to prevent hanging during development
-        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(30.0 * NSEC_PER_SEC));
+        // Wait with configurable timeout to prevent hanging during development
+        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(INSPECTION_TIMEOUT_SECONDS * NSEC_PER_SEC));
         long result = dispatch_group_wait(group, timeout);
         
         if (result != 0) {
             // Timeout occurred
-            PROGRESS_LOG("⚠️  Timeout: AudioUnit inspection took longer than 30 seconds. This may indicate:\n");
+            PROGRESS_LOG("⚠️  Timeout: AudioUnit inspection took longer than %.0f seconds. This may indicate:\n", INSPECTION_TIMEOUT_SECONDS);
             PROGRESS_LOG("   - A plugin is hanging or taking too long to initialize\n");
             PROGRESS_LOG("   - System is under heavy load\n");
             PROGRESS_LOG("   - A plugin has crashed and is waiting indefinitely\n");

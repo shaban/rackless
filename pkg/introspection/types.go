@@ -40,14 +40,14 @@ func (result IntrospectionResult) SelectBestPluginForLayout() *Plugin {
 	// Fall back to any plugin with a good number of parameters
 	var bestPlugin *Plugin
 	maxParams := 0
-	
+
 	for i := range result {
 		if len(result[i].Parameters) > maxParams {
 			maxParams = len(result[i].Parameters)
 			bestPlugin = &result[i]
 		}
 	}
-	
+
 	return bestPlugin
 }
 

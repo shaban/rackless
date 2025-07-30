@@ -3,8 +3,8 @@
 package main
 
 import (
-	"syscall/js"
 	"log"
+	"syscall/js"
 )
 
 func main() {

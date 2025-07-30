@@ -8,6 +8,8 @@ import (
 )
 
 func BenchmarkGetAudioUnits(b *testing.B) {
+	// Note: This is an expensive operation (~6-7 seconds)
+	// Use -benchtime=1x to run exactly once
 	for i := 0; i < b.N; i++ {
 		_, err := GetAudioUnits()
 		if err != nil {
@@ -17,6 +19,8 @@ func BenchmarkGetAudioUnits(b *testing.B) {
 }
 
 func BenchmarkGetAudioUnitsJSON(b *testing.B) {
+	// Note: This is an expensive operation (~6-7 seconds)
+	// Use -benchtime=1x to run exactly once
 	for i := 0; i < b.N; i++ {
 		_, err := GetAudioUnitsJSON()
 		if err != nil {
@@ -33,12 +37,12 @@ func BenchmarkIntrospectionResultMethods(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	
+
 	for i := 0; i < b.N; i++ {
 		// Benchmark query methods
 		_ = plugins.GetParameterCount()
 		_ = plugins.SelectBestPluginForLayout()
-		
+
 		if len(plugins) > 0 {
 			_ = plugins.FindPluginByName(plugins[0].Name)
 		}

@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 	"time"
-	
+
 	"github.com/shaban/rackless/pkg/introspection"
 )
 
@@ -14,7 +14,7 @@ func TestIntrospectionIntegration(t *testing.T) {
 
 	// Test that introspection works within a reasonable time
 	start := time.Now()
-	
+
 	plugins, err := introspection.GetAudioUnits()
 	if err != nil {
 		t.Fatalf("Integration test failed: %v", err)
@@ -38,7 +38,7 @@ func TestIntrospectionIntegration(t *testing.T) {
 		t.Error("Integration test: no parameters found across all plugins")
 	}
 
-	t.Logf("Integration test successful: %d plugins, %d parameters", 
+	t.Logf("Integration test successful: %d plugins, %d parameters",
 		len(plugins), totalParams)
 }
 
@@ -59,7 +59,7 @@ func TestIntrospectionRepeatable(t *testing.T) {
 	}
 
 	if len(plugins1) != len(plugins2) {
-		t.Errorf("Introspection not repeatable: first run found %d plugins, second run found %d", 
+		t.Errorf("Introspection not repeatable: first run found %d plugins, second run found %d",
 			len(plugins1), len(plugins2))
 	}
 
