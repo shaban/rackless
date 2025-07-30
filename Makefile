@@ -15,6 +15,7 @@ help:
 	@echo "  test-integration   - Run integration tests"
 	@echo "  test-bench         - Run benchmarks (single iteration)"
 	@echo "  introspection-test - Test AudioUnit introspection"
+	@echo "  device-test        - Test device enumeration"
 	@echo "  clean              - Clean build artifacts"
 	@echo "  css                - Build Tailwind CSS (legacy)"
 	@echo "  css-watch          - Watch and build Tailwind CSS (legacy)"
@@ -61,6 +62,7 @@ test-integration: compile-objc
 test-bench: compile-objc
 	@echo "Running benchmarks..."
 	go test -bench=. -benchtime=1x ./pkg/introspection
+	go test -bench=. -benchtime=1x ./pkg/devices
 
 # Test AudioUnit introspection
 introspection-test: compile-objc
@@ -68,19 +70,31 @@ introspection-test: compile-objc
 	go build -o bin/introspection-test ./cmd/introspection-test
 	./bin/introspection-test
 
+# Test device enumeration
+device-test: compile-objc
+	@echo "Building and running device enumeration test..."
+	go build -o bin/device-test ./cmd/device-test
+	./bin/device-test
+
 # Compile Objective-C bridge code
 compile-objc:
 	@echo "Compiling Objective-C AudioUnit bridge..."
 	@mkdir -p bin
+	# Compile AudioUnit introspection bridge
 	clang -c -x objective-c -o pkg/audio/audiounit_inspector.o pkg/audio/audiounit_inspector.m \
 		-framework Foundation -framework AudioToolbox -framework AVFoundation -framework AudioUnit
 	ar rcs pkg/audio/libaudiounit_inspector.a pkg/audio/audiounit_inspector.o
+	# Compile device enumeration bridge
+	clang -c -x objective-c -o pkg/audio/audiounit_devices.o pkg/audio/audiounit_devices.m \
+		-framework Foundation -framework CoreAudio -framework CoreMIDI
+	ar rcs pkg/audio/libaudiounit_devices.a pkg/audio/audiounit_devices.o
 
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf bin/
 	rm -f $(WASM_FILE)
+	rm -f pkg/audio/*.o pkg/audio/*.a
 	rm -f *.o *.a
 
 # Legacy CSS build targets (keep for reference during migration)
