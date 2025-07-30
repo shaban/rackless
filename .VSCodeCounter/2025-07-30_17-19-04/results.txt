@@ -1,0 +1,122 @@
+Date : 2025-07-30 17:19:04
+Directory : /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless
+Total : 67 files,  32869 codes, 1150 comments, 2152 blanks, all 36171 lines
+
+Languages
++----------------+------------+------------+------------+------------+------------+
+| language       | files      | code       | comment    | blank      | total      |
++----------------+------------+------------+------------+------------+------------+
+| JavaScript     |          3 |     19,738 |        363 |        135 |     20,236 |
+| PostCSS        |          2 |      3,699 |          7 |          7 |      3,713 |
+| Go             |         27 |      3,027 |        418 |        677 |      4,122 |
+| Markdown       |         14 |      2,114 |          1 |        533 |      2,648 |
+| Objective-C    |          5 |      2,091 |        234 |        515 |      2,840 |
+| HTML           |          4 |      1,420 |         50 |        190 |      1,660 |
+| JSON           |          1 |        464 |          0 |          0 |        464 |
+| Makefile       |          2 |        141 |         31 |         39 |        211 |
+| C++            |          5 |         81 |         28 |         34 |        143 |
+| TypeScript     |          1 |         55 |          6 |          3 |         64 |
+| Shell Script   |          1 |         33 |          9 |         13 |         55 |
+| Go Module File |          2 |          6 |          3 |          6 |         15 |
++----------------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                                                 | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                                                    |         67 |     32,869 |      1,150 |      2,152 |     36,171 |
+| . (Files)                                                                                                                            |          4 |        620 |         20 |         53 |        693 |
+| Archive                                                                                                                              |         36 |     29,745 |        833 |      1,455 |     32,033 |
+| Archive (Files)                                                                                                                      |         20 |      3,483 |        413 |        782 |      4,678 |
+| Archive/docs                                                                                                                         |          8 |      1,420 |          1 |        342 |      1,763 |
+| Archive/docs (Files)                                                                                                                 |          5 |      1,114 |          1 |        274 |      1,389 |
+| Archive/docs/architecture                                                                                                            |          3 |        306 |          0 |         68 |        374 |
+| Archive/frontend                                                                                                                     |          8 |     24,842 |        419 |        331 |     25,592 |
+| Archive/frontend (Files)                                                                                                             |          4 |      1,420 |         50 |        190 |      1,660 |
+| Archive/frontend/src                                                                                                                 |          1 |         37 |          6 |          6 |         49 |
+| Archive/frontend/static                                                                                                              |          3 |     23,385 |        363 |        135 |     23,883 |
+| cmd                                                                                                                                  |          5 |        207 |         25 |         60 |        292 |
+| cmd/device-test                                                                                                                      |          1 |         67 |          4 |         16 |         87 |
+| cmd/introspection-test                                                                                                               |          2 |        108 |          9 |         31 |        148 |
+| cmd/server                                                                                                                           |          1 |         19 |          4 |          6 |         29 |
+| cmd/wasm                                                                                                                             |          1 |         13 |          8 |          7 |         28 |
+| docs                                                                                                                                 |          3 |        223 |          0 |         64 |        287 |
+| pkg                                                                                                                                  |         19 |      2,074 |        272 |        520 |      2,866 |
+| pkg/audio                                                                                                                            |          4 |        862 |        116 |        216 |      1,194 |
+| pkg/devices                                                                                                                          |          9 |        963 |        111 |        239 |      1,313 |
+| pkg/introspection                                                                                                                    |          6 |        249 |         45 |         65 |        359 |
++--------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| filename                                                                                                                             | language       | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/.ai-context.md                               | Markdown       |        234 |          0 |         49 |        283 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/Makefile                                     | Makefile       |         65 |         14 |         20 |         99 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/README.md                                    | Markdown       |        161 |          0 |         48 |        209 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/audiounit_devices.h                          | C++            |         30 |         11 |         10 |         51 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/audiounit_devices.m                          | Objective-C    |        545 |         53 |        138 |        736 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/audiounit_inspector.h                        | C++            |         10 |          1 |          5 |         16 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/audiounit_inspector.m                        | Objective-C    |        402 |         54 |         88 |        544 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/dev.sh                                       | Shell Script   |         33 |          9 |         13 |         55 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/device_debug_test.go                         | Go             |         13 |          1 |          5 |         19 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/devices.go                                   | Go             |        149 |         20 |         35 |        204 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/devices_test.go                              | Go             |         88 |          3 |         13 |        104 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/docs/ai-context.md                           | Markdown       |        286 |          0 |         72 |        358 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/docs/architecture/README.md                  | Markdown       |         49 |          0 |         17 |         66 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/docs/architecture/device-enumeration-flow.md | Markdown       |         99 |          0 |         19 |        118 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/docs/architecture/system-architecture.md     | Markdown       |        158 |          0 |         32 |        190 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/docs/current-state.md                        | Markdown       |        131 |          0 |         34 |        165 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/docs/layouts.md                              | Markdown       |        193 |          0 |         56 |        249 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/docs/migration.md                            | Markdown       |        409 |          1 |         92 |        502 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/docs/tailwind-guide.md                       | Markdown       |         95 |          0 |         20 |        115 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/frontend/app.html                            | HTML           |      1,031 |         41 |        140 |      1,212 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/frontend/integration-test.html               | HTML           |        143 |          7 |         18 |        168 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/frontend/shoelace-test.html                  | HTML           |         66 |          2 |         10 |         78 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/frontend/src/input.css                       | PostCSS        |         37 |          6 |          6 |         49 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/frontend/sse-test.html                       | HTML           |        180 |          0 |         22 |        202 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/frontend/static/style.css                    | PostCSS        |      3,662 |          1 |          1 |      3,664 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/frontend/static/vue.global.js                | JavaScript     |     17,771 |        333 |        124 |     18,228 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/frontend/static/webaudio-controls.js         | JavaScript     |      1,952 |         29 |         10 |      1,991 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/go.mod                                       | Go Module File |          2 |          0 |          2 |          4 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/introspection.go                             | Go             |        131 |         29 |         27 |        187 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/layout_manager.go                            | Go             |        363 |         52 |         76 |        491 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/layout_types.go                              | Go             |        158 |         28 |         33 |        219 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/main.go                                      | Go             |        580 |         66 |        123 |        769 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/settings.go                                  | Go             |        245 |         35 |         48 |        328 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/sse_test.go                                  | Go             |        204 |         30 |         45 |        279 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/tailwind.config.js                           | JavaScript     |         15 |          1 |          1 |         17 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Archive/tailwind.config.ts                           | TypeScript     |         55 |          6 |          3 |         64 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/Makefile                                             | Makefile       |         76 |         17 |         19 |        112 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/README.md                                            | Markdown       |         76 |          0 |         30 |        106 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/cmd/device-test/main.go                              | Go             |         67 |          4 |         16 |         87 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/cmd/introspection-test/main.go                       | Go             |         60 |          5 |         15 |         80 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/cmd/introspection-test/main_test.go                  | Go             |         48 |          4 |         16 |         68 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/cmd/server/main.go                                   | Go             |         19 |          4 |          6 |         29 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/cmd/wasm/main.go                                     | Go             |         13 |          8 |          7 |         28 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/device-enumeration-1753887304.json                   | JSON           |        464 |          0 |          0 |        464 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/docs/architecture.md                                 | Markdown       |         99 |          0 |         22 |        121 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/docs/device-enumeration-architecture.md              | Markdown       |          0 |          0 |          1 |          1 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/docs/timeout-architecture.md                         | Markdown       |        124 |          0 |         41 |        165 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/go.mod                                               | Go Module File |          4 |          3 |          4 |         11 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/audio/audiounit_devices.h                        | C++            |         16 |          8 |          8 |         32 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/audio/audiounit_devices.m                        | Objective-C    |        431 |         52 |        114 |        597 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/audio/audiounit_inspector.h                      | C++            |         10 |          1 |          5 |         16 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/audio/audiounit_inspector.m                      | Objective-C    |        405 |         55 |         89 |        549 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/devices/benchmark_test.go                        | Go             |         97 |          8 |         16 |        121 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/devices/device_enumerator.h                      | C++            |         15 |          7 |          6 |         28 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/devices/device_enumerator.m                      | Objective-C    |        308 |         20 |         86 |        414 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/devices/devices_test.go                          | Go             |        188 |         21 |         41 |        250 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/devices/doc.go                                   | Go             |          1 |          7 |          1 |          9 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/devices/integration_test.go                      | Go             |        113 |          8 |         25 |        146 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/devices/native.go                                | Go             |         87 |         16 |         33 |        136 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/devices/stub.go                                  | Go             |        105 |         11 |         17 |        133 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/devices/types.go                                 | Go             |         49 |         13 |         14 |         76 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/introspection/benchmark_test.go                  | Go             |         34 |          8 |          9 |         51 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/introspection/introspection_stub_test.go         | Go             |         36 |          3 |         13 |         52 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/introspection/introspection_test.go              | Go             |         68 |          8 |         19 |         95 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/introspection/native.go                          | Go             |         28 |         14 |         10 |         52 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/introspection/stub.go                            | Go             |         29 |          4 |          4 |         37 |
+| /Users/shaban/Library/Mobile Documents/com~apple~CloudDocs/Programming/rackless/pkg/introspection/types.go                           | Go             |         54 |          8 |         10 |         72 |
+| Total                                                                                                                                |                |     32,869 |      1,150 |      2,152 |     36,171 |
++--------------------------------------------------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+

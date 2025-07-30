@@ -1,8 +1,9 @@
+//go:build !js && !wasm
+
 package devices
 
 import (
 	"testing"
-	"time"
 )
 
 // TestNewDeviceEnumerator tests basic enumerator creation
@@ -16,7 +17,6 @@ func TestNewDeviceEnumerator(t *testing.T) {
 // TestNewDeviceEnumeratorWithConfig tests enumerator creation with custom config
 func TestNewDeviceEnumeratorWithConfig(t *testing.T) {
 	config := DeviceEnumerationConfig{
-		Timeout:              5 * time.Second,
 		IncludeOfflineDevices: true,
 		IncludeVirtualDevices: false,
 	}
@@ -30,10 +30,6 @@ func TestNewDeviceEnumeratorWithConfig(t *testing.T) {
 // TestDefaultConfig tests the default configuration
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
-	
-	if config.Timeout != 30*time.Second {
-		t.Errorf("Expected default timeout of 30s, got %v", config.Timeout)
-	}
 	
 	if config.IncludeOfflineDevices != false {
 		t.Errorf("Expected IncludeOfflineDevices to be false by default")
@@ -249,39 +245,5 @@ func TestGetAllDevices(t *testing.T) {
 	}
 	if !foundNoneMIDIInput {
 		t.Error("Missing '(None Selected)' option in MIDI inputs")
-	}
-}
-
-// TestDeviceEnumerationTimeout tests timeout behavior
-func TestDeviceEnumerationTimeout(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping timeout test in short mode")
-	}
-	
-	// Create enumerator with very short timeout
-	config := DeviceEnumerationConfig{
-		Timeout:              1 * time.Millisecond, // Very short timeout
-		IncludeOfflineDevices: false,
-		IncludeVirtualDevices: true,
-	}
-	
-	enumerator := NewDeviceEnumeratorWithConfig(config)
-	
-	start := time.Now()
-	result, err := enumerator.GetAllDevices()
-	elapsed := time.Since(start)
-	
-	// Should either succeed quickly or timeout
-	if err != nil {
-		// If it failed, should be due to timeout
-		if result.Error != "device enumeration timed out" {
-			t.Logf("Enumeration failed with: %v (elapsed: %v)", err, elapsed)
-			// This is acceptable - might succeed even with short timeout on fast systems
-		} else {
-			t.Logf("Enumeration timed out as expected (elapsed: %v)", elapsed)
-		}
-	} else {
-		t.Logf("Enumeration succeeded despite short timeout (elapsed: %v)", elapsed)
-		// This is also acceptable - fast systems might complete quickly
 	}
 }

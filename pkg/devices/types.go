@@ -62,15 +62,13 @@ type DeviceEnumerator interface {
 
 // DeviceEnumerationConfig holds configuration for device enumeration
 type DeviceEnumerationConfig struct {
-	Timeout              time.Duration `json:"timeout"`
-	IncludeOfflineDevices bool          `json:"includeOfflineDevices"`
-	IncludeVirtualDevices bool          `json:"includeVirtualDevices"`
+	IncludeOfflineDevices bool `json:"includeOfflineDevices"`
+	IncludeVirtualDevices bool `json:"includeVirtualDevices"`
 }
 
 // DefaultConfig returns the default device enumeration configuration
 func DefaultConfig() DeviceEnumerationConfig {
 	return DeviceEnumerationConfig{
-		Timeout:              30 * time.Second, // Same timeout as introspection
 		IncludeOfflineDevices: false,
 		IncludeVirtualDevices: true,
 	}

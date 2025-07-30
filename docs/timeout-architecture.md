@@ -2,25 +2,23 @@
 
 ## Overview
 
-Rackless uses a **dual-timeout architecture** to ensure robust AudioUnit plugin introspection without deadlocks or indefinite hangs.
+Rackless uses a **single-layer timeout architecture** to ensure robust AudioUnit plugin introspection without deadlocks or indefinite hangs. After analysis, we determined that the Go-level timeout was superfluous, and the Objective-C plugin-level timeout provides sufficient protection.
 
-## Architecture
+## Simplified Architecture
 
 ```
 Go Application Layer
-    ↕ (30s overall timeout)
+    ↕ (direct synchronous call)
 Go Introspection Package (pkg/introspection)  
-    ↕ (context.WithTimeout + goroutines)
-CGO Bridge
-    ↕ (channels for async communication)
+    ↕ (simple CGO bridge)
 Objective-C AudioUnit Bridge (pkg/audio)
     ↕ (0.5s per-plugin timeout)
 macOS AudioUnit APIs
 ```
 
-## Dual-Timeout Strategy
+## Single-Timeout Strategy
 
-### Level 1: Plugin Initialization Timeout (Objective-C)
+### Plugin Initialization Timeout (Objective-C)
 
 **Location**: `pkg/audio/audiounit_inspector.m`
 ```objectivec
@@ -38,48 +36,45 @@ macOS AudioUnit APIs
 - The scan continues with the next plugin
 - Results include all successfully scanned plugins
 
-### Level 2: Overall Process Timeout (Go)
-
-**Location**: `pkg/introspection/native.go`
-```go
-const DefaultIntrospectionTimeout = 30 * time.Second
-
-func GetAudioUnitsWithTimeout(timeout time.Duration) (IntrospectionResult, error) {
-    ctx, cancel := context.WithTimeout(context.Background(), timeout)
-    defer cancel()
-    
-    // Run C function in goroutine with channels for async communication
-    // Return timeout error if entire process exceeds limit
-}
-```
-
-**Purpose**:
-- Prevent the entire introspection process from hanging indefinitely
-- Provide configurable timeout for different scenarios (testing vs production)
-- Clean up resources if CGO bridge hangs
-
-**Behavior**:
-- Entire introspection process must complete within 30 seconds (default)
-- Uses Go context for clean cancellation
-- Returns proper error if timeout exceeded
-- Prevents deadlocks in testing environments
+**Why This Is Sufficient**:
+- **Real-world data**: 62 plugins complete in ~6-7 seconds total
+- **Plugin filtering**: Only plugins with parameters are processed
+- **0.5s per plugin**: Even 200+ plugins would complete in reasonable time
+- **Theoretical max**: With heavy plugin loads, still completes well under any reasonable timeout
+- **Future caching**: Will make subsequent scans nearly instantaneous
 
 ## Performance Characteristics
 
 ### Normal Operation
-- **Total time**: ~6-7 seconds
+- **Total time**: ~6-7 seconds for 62 plugins
 - **Plugin timeout**: 0.5s is sufficient for well-behaved plugins
-- **Overall timeout**: 30s provides generous buffer
+- **No overhead**: No goroutines, channels, or context management
 
-### Testing Environment
-- **Benchmark stress**: Can cause plugins to take longer
-- **Level 1**: Individual plugins still timeout at 0.5s (prevents hangs)
-- **Level 2**: Overall process completes within 30s (prevents test deadlocks)
+### Extreme Scenarios
+- **200+ plugins**: ~100s maximum (200 × 0.5s), but realistic filtering reduces this significantly
+- **Many quick plugins**: Complete in milliseconds each
+- **Mixed load**: Fast plugins don't wait for slow plugins
 
 ### Error Scenarios
 - **Broken plugin**: Skipped after 0.5s, scan continues
-- **System overload**: Process times out cleanly after 30s
-- **CGO bridge hang**: Go timeout prevents deadlock
+- **System overload**: Each plugin still gets 0.5s maximum
+- **Multiple problematic plugins**: Each handled individually, no cascade failure
+
+## Removed Complexity
+
+### What We Eliminated
+- ❌ Go context timeouts
+- ❌ Goroutines for async execution  
+- ❌ Channel-based communication
+- ❌ Complex timeout error handling
+- ❌ 30-second overall timeout constant
+
+### Benefits of Simplification
+- ✅ **Cleaner code**: Direct synchronous calls
+- ✅ **Better performance**: No goroutine overhead
+- ✅ **Simpler debugging**: Straightforward call stack
+- ✅ **More predictable**: No context cancellation edge cases
+- ✅ **Easier maintenance**: Less complex timeout logic
 
 ## Configuration
 
@@ -91,12 +86,50 @@ func GetAudioUnitsWithTimeout(timeout time.Duration) (IntrospectionResult, error
 
 ### Runtime (Go)
 ```go
-// Use default timeout
+// Simple synchronous call - no timeout configuration needed
 plugins, err := introspection.GetAudioUnits()
 
-// Use custom timeout
-plugins, err := introspection.GetAudioUnitsWithTimeout(60 * time.Second)
+// Or get raw JSON
+jsonData, err := introspection.GetAudioUnitsJSON()
 ```
+
+## Current Results
+
+### System Performance
+- **62 plugins discovered** in ~6-7 seconds
+- **1,759 total parameters** across all plugins
+- **627.6 KB JSON** output
+- **Neural DSP Morgan Amps Suite** identified as best demo plugin (128 parameters)
+
+## Why This Single-Timeout Approach Works
+
+1. **Fast Path**: Well-behaved plugins complete in milliseconds
+2. **Robust Handling**: Problematic plugins are skipped after 0.5s, not failed
+3. **Predictable Performance**: Total time is reasonably bounded by plugin count
+4. **Simple Implementation**: Direct synchronous calls, easy to debug
+5. **Production Ready**: Consistent performance and results
+
+## Implementation Notes
+
+- **CGO Safety**: All C memory properly freed with `defer C.free()`
+- **Direct Calls**: No goroutines or channels needed
+- **Error Propagation**: Clean error handling from Objective-C layer
+- **Memory Management**: Proper cleanup prevents leaks
+
+## Historical Context
+
+- **Original Issue**: Some plugins would hang indefinitely during initialization
+- **First Solution**: 0.5s plugin timeout in Objective-C - **essential protection**
+- **Added Complexity**: 30s Go timeout with goroutines - **analysis showed superfluous**
+- **Current Solution**: Single plugin timeout provides both speed and safety
+
+**Key Insight**: The 0.5s plugin timeout is the **critical protection**. Go-level timeouts added complexity without meaningful benefit since:
+- Real-world plugin loads complete well within any reasonable timeout
+- Plugin filtering reduces actual processing time
+- Individual plugin timeouts prevent cascade failures
+- Future caching will make this even faster
+
+This simplified architecture ensures Rackless is both **performant for users** and **maintainable for developers**.
 
 ## Results Consistency
 

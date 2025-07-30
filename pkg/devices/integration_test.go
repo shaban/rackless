@@ -141,28 +141,5 @@ func TestIntegrationDeviceEnumeration(t *testing.T) {
 		t.Logf("⚠️  Device enumeration took longer than expected: %v", elapsed)
 	}
 	
-	// Test timeout behavior
-	t.Run("TimeoutBehavior", func(t *testing.T) {
-		config := DeviceEnumerationConfig{
-			Timeout:              100 * time.Millisecond,
-			IncludeOfflineDevices: false,
-			IncludeVirtualDevices: true,
-		}
-		
-		timeoutEnumerator := NewDeviceEnumeratorWithConfig(config)
-		timeoutStart := time.Now()
-		timeoutResult, timeoutErr := timeoutEnumerator.GetAllDevices()
-		timeoutElapsed := time.Since(timeoutStart)
-		
-		if timeoutErr != nil {
-			t.Logf("⏱️  Short timeout enumeration failed as expected: %v (elapsed: %v)", timeoutErr, timeoutElapsed)
-		} else {
-			t.Logf("⚡ Short timeout enumeration succeeded quickly (elapsed: %v)", timeoutElapsed)
-			if !timeoutResult.Success {
-				t.Logf("   But reported failure: %s", timeoutResult.Error)
-			}
-		}
-	})
-	
 	t.Log("✅ Device enumeration integration test completed successfully")
 }

@@ -2,7 +2,6 @@ package devices
 
 import (
 	"testing"
-	"time"
 )
 
 // BenchmarkDeviceEnumeration benchmarks complete device enumeration
@@ -100,10 +99,9 @@ func BenchmarkDefaultDevices(b *testing.B) {
 	}
 }
 
-// BenchmarkDeviceEnumerationWithTimeout benchmarks enumeration with custom timeout
-func BenchmarkDeviceEnumerationWithTimeout(b *testing.B) {
+// BenchmarkDeviceEnumerationWithConfig benchmarks enumeration with custom config
+func BenchmarkDeviceEnumerationWithConfig(b *testing.B) {
 	config := DeviceEnumerationConfig{
-		Timeout:              5 * time.Second,
 		IncludeOfflineDevices: false,
 		IncludeVirtualDevices: true,
 	}
@@ -113,7 +111,7 @@ func BenchmarkDeviceEnumerationWithTimeout(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		result, err := enumerator.GetAllDevices()
 		if err != nil {
-			b.Fatalf("Device enumeration with timeout failed: %v", err)
+			b.Fatalf("Device enumeration with config failed: %v", err)
 		}
 		if !result.Success {
 			b.Fatalf("Device enumeration reported failure: %s", result.Error)
