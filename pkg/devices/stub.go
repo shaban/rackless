@@ -90,13 +90,13 @@ func (de *stubDeviceEnumerator) GetDefaultAudioDevices() (DefaultAudioDevices, e
 // GetAllDevices implements DeviceEnumerator.GetAllDevices
 func (de *stubDeviceEnumerator) GetAllDevices() (DeviceEnumerationResult, error) {
 	start := time.Now()
-	
+
 	audioInputs, _ := de.GetAudioInputDevices()
 	audioOutputs, _ := de.GetAudioOutputDevices()
 	midiInputs, _ := de.GetMIDIInputDevices()
 	midiOutputs, _ := de.GetMIDIOutputDevices()
 	defaultDevices, _ := de.GetDefaultAudioDevices()
-	
+
 	// Add "(None Selected)" options for safe defaults
 	audioInputsWithNone := append([]AudioDevice{{
 		Name:         "(None Selected)",
@@ -105,21 +105,21 @@ func (de *stubDeviceEnumerator) GetAllDevices() (DeviceEnumerationResult, error)
 		ChannelCount: 0,
 		IsDefault:    true,
 	}}, audioInputs...)
-	
+
 	midiInputsWithNone := append([]MIDIDevice{{
 		Name:       "(None Selected)",
 		UID:        "none",
 		EndpointID: -1,
 		IsOnline:   true,
 	}}, midiInputs...)
-	
+
 	midiOutputsWithNone := append([]MIDIDevice{{
 		Name:       "(None Selected)",
 		UID:        "none",
 		EndpointID: -1,
 		IsOnline:   true,
 	}}, midiOutputs...)
-	
+
 	return DeviceEnumerationResult{
 		AudioInputs:     audioInputsWithNone,
 		AudioOutputs:    audioOutputs,

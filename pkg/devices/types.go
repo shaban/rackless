@@ -29,33 +29,33 @@ type DefaultAudioDevices struct {
 
 // DeviceEnumerationResult contains all enumerated devices
 type DeviceEnumerationResult struct {
-	AudioInputs     []AudioDevice        `json:"audioInputs"`
-	AudioOutputs    []AudioDevice        `json:"audioOutputs"`
-	MIDIInputs      []MIDIDevice         `json:"midiInputs"`
-	MIDIOutputs     []MIDIDevice         `json:"midiOutputs"`
-	DefaultDevices  DefaultAudioDevices  `json:"defaultDevices"`
-	EnumerationTime time.Duration        `json:"enumerationTime"`
-	Success         bool                 `json:"success"`
-	Error           string               `json:"error,omitempty"`
+	AudioInputs     []AudioDevice       `json:"audioInputs"`
+	AudioOutputs    []AudioDevice       `json:"audioOutputs"`
+	MIDIInputs      []MIDIDevice        `json:"midiInputs"`
+	MIDIOutputs     []MIDIDevice        `json:"midiOutputs"`
+	DefaultDevices  DefaultAudioDevices `json:"defaultDevices"`
+	EnumerationTime time.Duration       `json:"enumerationTime"`
+	Success         bool                `json:"success"`
+	Error           string              `json:"error,omitempty"`
 }
 
 // DeviceEnumerator interface defines the device enumeration capabilities
 type DeviceEnumerator interface {
 	// GetAudioInputDevices returns all available audio input devices
 	GetAudioInputDevices() ([]AudioDevice, error)
-	
+
 	// GetAudioOutputDevices returns all available audio output devices
 	GetAudioOutputDevices() ([]AudioDevice, error)
-	
+
 	// GetMIDIInputDevices returns all available MIDI input devices
 	GetMIDIInputDevices() ([]MIDIDevice, error)
-	
+
 	// GetMIDIOutputDevices returns all available MIDI output devices
 	GetMIDIOutputDevices() ([]MIDIDevice, error)
-	
+
 	// GetDefaultAudioDevices returns the system's default audio devices
 	GetDefaultAudioDevices() (DefaultAudioDevices, error)
-	
+
 	// GetAllDevices returns a comprehensive enumeration of all devices
 	GetAllDevices() (DeviceEnumerationResult, error)
 }

@@ -61,7 +61,7 @@ func main() {
 		fmt.Printf("  %d. %s (ID: %d, Online: %t)\n", i+1, device.Name, device.EndpointID, device.IsOnline)
 	}
 
-	fmt.Printf("\n⚙️  Default Devices: Input ID %d, Output ID %d\n", 
+	fmt.Printf("\n⚙️  Default Devices: Input ID %d, Output ID %d\n",
 		result.DefaultDevices.DefaultInput, result.DefaultDevices.DefaultOutput)
 
 	// Save full JSON output if requested

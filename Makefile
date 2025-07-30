@@ -85,9 +85,9 @@ compile-objc:
 		-framework Foundation -framework AudioToolbox -framework AVFoundation -framework AudioUnit
 	ar rcs pkg/audio/libaudiounit_inspector.a pkg/audio/audiounit_inspector.o
 	# Compile device enumeration bridge
-	clang -c -x objective-c -o pkg/audio/audiounit_devices.o pkg/audio/audiounit_devices.m \
-		-framework Foundation -framework CoreAudio -framework CoreMIDI
-	ar rcs pkg/audio/libaudiounit_devices.a pkg/audio/audiounit_devices.o
+	clang -c -x objective-c -o pkg/audio/device_enumerator.o pkg/audio/device_enumerator.m \
+		-framework Foundation -framework CoreAudio -framework AudioToolbox -framework CoreMIDI
+	ar rcs pkg/audio/libaudiounit_devices.a pkg/audio/device_enumerator.o
 
 # Clean build artifacts
 clean:

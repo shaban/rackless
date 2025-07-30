@@ -7,7 +7,7 @@ import (
 // BenchmarkDeviceEnumeration benchmarks complete device enumeration
 func BenchmarkDeviceEnumeration(b *testing.B) {
 	enumerator := NewDeviceEnumerator()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		result, err := enumerator.GetAllDevices()
@@ -23,7 +23,7 @@ func BenchmarkDeviceEnumeration(b *testing.B) {
 // BenchmarkAudioInputDevices benchmarks audio input device enumeration
 func BenchmarkAudioInputDevices(b *testing.B) {
 	enumerator := NewDeviceEnumerator()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		devices, err := enumerator.GetAudioInputDevices()
@@ -39,7 +39,7 @@ func BenchmarkAudioInputDevices(b *testing.B) {
 // BenchmarkAudioOutputDevices benchmarks audio output device enumeration
 func BenchmarkAudioOutputDevices(b *testing.B) {
 	enumerator := NewDeviceEnumerator()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		devices, err := enumerator.GetAudioOutputDevices()
@@ -55,7 +55,7 @@ func BenchmarkAudioOutputDevices(b *testing.B) {
 // BenchmarkMIDIInputDevices benchmarks MIDI input device enumeration
 func BenchmarkMIDIInputDevices(b *testing.B) {
 	enumerator := NewDeviceEnumerator()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		devices, err := enumerator.GetMIDIInputDevices()
@@ -71,7 +71,7 @@ func BenchmarkMIDIInputDevices(b *testing.B) {
 // BenchmarkMIDIOutputDevices benchmarks MIDI output device enumeration
 func BenchmarkMIDIOutputDevices(b *testing.B) {
 	enumerator := NewDeviceEnumerator()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		devices, err := enumerator.GetMIDIOutputDevices()
@@ -87,7 +87,7 @@ func BenchmarkMIDIOutputDevices(b *testing.B) {
 // BenchmarkDefaultDevices benchmarks default device detection
 func BenchmarkDefaultDevices(b *testing.B) {
 	enumerator := NewDeviceEnumerator()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		defaults, err := enumerator.GetDefaultAudioDevices()
@@ -106,7 +106,7 @@ func BenchmarkDeviceEnumerationWithConfig(b *testing.B) {
 		IncludeVirtualDevices: true,
 	}
 	enumerator := NewDeviceEnumeratorWithConfig(config)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		result, err := enumerator.GetAllDevices()

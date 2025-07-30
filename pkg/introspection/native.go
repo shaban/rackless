@@ -18,7 +18,7 @@ import (
 )
 
 // GetAudioUnits performs native AudioUnit introspection
-// Relies on 0.5s per-plugin timeout in Objective-C layer for safety
+// Relies on 0.5s per-plugin  in Objective-C layer for safety
 func GetAudioUnits() (IntrospectionResult, error) {
 	jsonPtr := C.IntrospectAudioUnits()
 	if jsonPtr == nil {
