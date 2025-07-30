@@ -4,6 +4,11 @@ bin/
 *.a
 *.wasm
 
+# Ignore standalone tool executables
+standalone/audio-host/audio-host
+standalone/inspector/inspector  
+standalone/devices/devices
+
 # Ignore Go build cache
 go.sum
 
