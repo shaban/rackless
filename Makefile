@@ -16,6 +16,8 @@ help:
 	@echo "  test-bench         - Run benchmarks (single iteration)"
 	@echo "  introspection-test - Test AudioUnit introspection"
 	@echo "  device-test        - Test device enumeration"
+	@echo "  audiohost-test     - Test Go audio host controller"
+	@echo "  audio-host         - Build standalone audio host tool"
 	@echo "  clean              - Clean build artifacts"
 	@echo "  css                - Build Tailwind CSS (legacy)"
 	@echo "  css-watch          - Watch and build Tailwind CSS (legacy)"
@@ -76,6 +78,17 @@ device-test: compile-objc
 	go build -o bin/device-test ./cmd/device-test
 	./bin/device-test
 
+# Test Go audio host controller
+audiohost-test: audio-host
+	@echo "Building and running Go audio host controller test..."
+	go build -o bin/audiohost-test ./cmd/audiohost-test
+	./bin/audiohost-test
+
+# Build standalone audio host tool
+audio-host:
+	@echo "Building standalone audio host..."
+	$(MAKE) -C standalone-audio-host
+
 # Compile Objective-C bridge code
 compile-objc:
 	@echo "Compiling Objective-C AudioUnit bridge..."
@@ -88,6 +101,10 @@ compile-objc:
 	clang -c -x objective-c -o pkg/audio/device_enumerator.o pkg/audio/device_enumerator.m \
 		-framework Foundation -framework CoreAudio -framework AudioToolbox -framework CoreMIDI
 	ar rcs pkg/audio/libaudiounit_devices.a pkg/audio/device_enumerator.o
+	# Compile audio host bridge
+	clang -c -x objective-c -o pkg/audio/audiounit_host.o pkg/audio/audiounit_host.m \
+		-framework Foundation -framework CoreAudio -framework AudioToolbox -framework AVFoundation
+	ar rcs pkg/audio/libaudiounit_host.a pkg/audio/audiounit_host.o
 
 # Clean build artifacts
 clean:
