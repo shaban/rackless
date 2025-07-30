@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en" class="sl-theme-dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MC-SoFX Controller - Layout Editor</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/themes/dark.css" />
+    <script src="/static/vue.global.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/shoelace-autoloader.js"></script>
+    <script src="/static/webaudio-controls.js"></script>
+    
+    <style>
+        /* CSS Variables */
+        :root {
+            --tab-nav-height: 55px; /* Default fallback */
+        }
+        
+        /* Make the tab navigation sticky */
+        sl-tab-group::part(nav) {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 1000 !important;
+            background: rgba(15, 23, 42, 0.95) !important;
+            backdrop-filter: blur(10px) !important;
+            border-bottom: 1px solid #374151 !important;
+            height: var(--tab-nav-height); /* Apply variable to nav height */
+        }
+        
+        /* Main content styling */
+        .main-content {
+            min-height: 100vh;
+        }
+        
+        /* Split panel styling */
+        sl-split-panel {
+            --divider-color: #374151;
+            --divider-width: 2px;
+        }
+        
+        sl-split-panel::part(divider) {
+            background-color: var(--divider-color);
+        }
+        
+        /* Layout editor panel positioning */
+        .layout-editor-panel {
+            position: absolute;
+            top: var(--tab-nav-height);
+            right: 0;
+            left: 0;
+            bottom: 0;
+        }
+        
+        /* Full height layout section */
+        .layout-section.h-full {
+            height: 100vh;
+        }
+        
+        /* Custom Shoelace tab styling for dark theme */
+        sl-tab-group::part(base) {
+            background: transparent;
+        }
+        
+        sl-tab::part(base) {
+            color: #e2e8f0;
+            border-color: transparent;
+        }
+        
+        sl-tab[active]::part(base) {
+            color: #3b82f6;
+            border-color: #3b82f6;
+        }
+        
+        sl-tab::part(base):hover {
+            color: #60a5fa;
+        }
+        
+        /* Tab panel styling */
+        sl-tab-panel::part(base) {
+            padding: 0;
+            background: transparent;
+        }
+        
+        /* Layout sections */
+        .layout-section {
+            min-height: calc(100vh - 60px);
+            padding: 2rem;
+        }
+        
+        /* Layout Grid Styles */
+        .layout-grid {
+            display: grid;
+            gap: var(--grid-gap, 16px);
+            grid-template-columns: var(--grid-cols, repeat(auto-fit, minmax(300px, 1fr)));
+            grid-template-rows: var(--grid-rows, auto);
+        }
+        
+        .group-container {
+            background: #334155;
+            border: 1px solid #475569;
+        }
+        
+        .control-item {
+            min-width: 60px;
+        }
+        
+        /* Audio control colors - CSS variables */
+        :root {
+            --audio-primary: #3b82f6;
+            --audio-dark: #1e293b;
+            --audio-accent: #60a5fa;
+            --audio-label: #9ca3af;
+            --audio-param: #60a5fa;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="app">
+        <!-- Main Shoelace Tab Group with sticky tabs -->
+        <div class="main-content">
+            <sl-tab-group class="sticky-tabs">
+                <!-- Tab Navigation (will be sticky) -->
+                <sl-tab slot="nav" panel="viewer">
+                    <sl-icon name="eye" class="mr-2"></sl-icon>
+                    Layout Viewer
+                </sl-tab>
+                <sl-tab slot="nav" panel="editor">
+                    <sl-icon name="grid-3x3" class="mr-2"></sl-icon>
+                    Layout Editor
+                </sl-tab>
+                <sl-tab slot="nav" panel="presets" v-if="showAdvancedTabs">
+                    <sl-icon name="bookmark" class="mr-2"></sl-icon>
+                    Presets
+                </sl-tab>
+                <sl-tab slot="nav" panel="settings" v-if="showAdvancedTabs">
+                    <sl-icon name="gear" class="mr-2"></sl-icon>
+                    Settings
+                </sl-tab>
+
+                <!-- Layout Viewer Panel -->
+                <sl-tab-panel name="viewer">
+                    <div class="layout-section">
+                        <div class="max-w-6xl mx-auto">
+                            <!-- Loading State -->
+                            <div v-if="loading" class="flex items-center justify-center min-h-screen">
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-blue-400 mb-4">Loading Layout Data...</div>
+                                    <div class="text-lg text-gray-400">Fetching layouts and parameters...</div>
+                                </div>
+                            </div>
+
+                            <!-- Error State -->
+                            <div v-else-if="error" class="flex items-center justify-center min-h-screen">
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-red-400 mb-4">Error</div>
+                                    <div class="text-lg text-gray-400 mb-4">{{ error }}</div>
+                                    <sl-button variant="primary" @click="loadData">
+                                        Retry
+                                    </sl-button>
+                                </div>
+                            </div>
+
+                            <!-- Main Layout Viewer -->
+                            <div v-else>
+                                <h1 class="text-3xl font-bold mb-6 text-blue-400">
+                                    🎛️ Layout Viewer
+                                </h1>
+                                
+                                <!-- Layout Selection -->
+                                <div class="mb-6">
+                                    <sl-select label="Select Layout" v-model="selectedLayoutName" @sl-change="selectLayout">
+                                        <sl-option v-for="layout in layouts" :key="layout.name" :value="layout.name">
+                                            {{ layout.name }} ({{ layout.controlCount }} controls)
+                                        </sl-option>
+                                    </sl-select>
+                                </div>
+
+                                <!-- Current Layout Display -->
+                                <div v-if="currentLayout" class="layout-display">
+                                    <!-- Layout Info as Collapsible Details -->
+                                    <div class="mb-6">
+                                        <sl-details summary-icon="info-circle">
+                                            <span slot="summary" class="text-xl font-bold text-blue-400">
+                                                {{ currentLayout.name }}
+                                            </span>
+                                            
+                                            <div class="pt-4">
+                                                <p class="text-gray-400 mb-4">{{ currentLayout.description }}</p>
+                                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                                    <div class="flex flex-col p-3 bg-gray-700 rounded">
+                                                        <span class="text-gray-400 text-xs uppercase tracking-wide">Version</span>
+                                                        <span class="text-white font-semibold">{{ currentLayout.version }}</span>
+                                                    </div>
+                                                    <div class="flex flex-col p-3 bg-gray-700 rounded">
+                                                        <span class="text-gray-400 text-xs uppercase tracking-wide">Grid Size</span>
+                                                        <span class="text-white font-semibold">{{ currentLayout.grid.rows }}×{{ currentLayout.grid.columns }}</span>
+                                                    </div>
+                                                    <div class="flex flex-col p-3 bg-gray-700 rounded">
+                                                        <span class="text-gray-400 text-xs uppercase tracking-wide">Groups</span>
+                                                        <span class="text-white font-semibold">{{ currentLayout ? currentLayout.groups.length : 0 }}</span>
+                                                    </div>
+                                                    <div class="flex flex-col p-3 bg-gray-700 rounded">
+                                                        <span class="text-gray-400 text-xs uppercase tracking-wide">Parameters</span>
+                                                        <span class="text-white font-semibold">{{ parameters.length }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </sl-details>
+                                    </div>
+
+                                    <!-- Layout Grid -->
+                                    <layout-canvas
+                                        mode="viewer"
+                                        :current-layout="currentLayout"
+                                        :is-sample-layout="false"
+                                        :selected-group="null"
+                                        :container-class="`layout-grid bg-gray-800 border border-gray-700 rounded-lg p-6`"
+                                        :style="dynamicGridStyle"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </sl-tab-panel>
+                
+                <!-- Layout Editor Panel -->
+                <sl-tab-panel name="editor">
+                    <div class="layout-section">
+                        <!-- Main Horizontal Split: Canvas (Left) + Inspector/Palette (Right) -->
+                        <sl-split-panel position="75" class="layout-editor-panel">
+                            <!-- Main Canvas Area (Left - Full Height) -->
+                            <div slot="start" class="bg-gray-800 p-6 h-full">
+                                <!-- Editor Toolbar Component -->
+                                <editor-toolbar
+                                    :selected-item="selectedItem"
+                                    :current-layout-display-name="currentLayoutDisplayName"
+                                    :is-sample-layout="isSampleLayout"
+                                    :has-unsaved-changes="hasUnsavedChanges"
+                                    :saving-layout="savingLayout"
+                                    @new-layout="createNewLayout"
+                                    @save-layout="saveCurrentLayout"
+                                    @add-group="addNewGroup"
+                                    @duplicate-group="duplicateGroup"
+                                    @delete-group="deleteSelectedGroup"
+                                    @edit-control="editControl"
+                                    @midi-learn="startMidiLearn"
+                                    @delete-control="deleteControl"
+                                />
+                                
+                                <!-- Canvas Area -->
+                                <layout-canvas
+                                    mode="editor"
+                                    :current-layout="currentLayout"
+                                    :is-sample-layout="isSampleLayout"
+                                    :selected-group="selectedGroup"
+                                    :container-class="`bg-gray-700 rounded border-2 border-dashed border-gray-600 relative`"
+                                    :style="canvasStyle"
+                                    @group-selected="selectGroup"
+                                />
+                            </div>
+                            
+                            <!-- Right Side: Vertical Split for Inspector + Control Palette -->
+                            <sl-split-panel slot="end" vertical position="60" class="h-full">
+                                <!-- Property Inspector Component (Top Right) -->
+                                <property-inspector 
+                                    slot="start" 
+                                    :selected-item="selectedItem"
+                                    @property-changed="handlePropertyChanged"
+                                />
+                                
+                                <!-- Control Palette (Bottom Right) -->
+                                <div slot="end" class="bg-gray-800 p-6">
+                                    <h3 class="text-md font-semibold mb-3">Control Palette</h3>
+                                    <div class="text-gray-400 text-sm">
+                                        <p>Available Controls:</p>
+                                        <ul class="mt-2 space-y-1">
+                                            <li>🎛️ Rotary Knob</li>
+                                            <li>🎚️ Vertical Slider</li>
+                                            <li>🔘 Toggle Button</li>
+                                            <li>📊 Range Slider</li>
+                                            <li>🎯 XY Pad</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </sl-split-panel>
+                        </sl-split-panel>
+                    </div>
+                </sl-tab-panel>                <!-- Future Presets Panel -->
+                <sl-tab-panel name="presets" v-if="showAdvancedTabs">
+                    <div class="layout-section">
+                        <div class="max-w-6xl mx-auto">
+                            <h1 class="text-3xl font-bold mb-6 text-purple-400">
+                                📚 Presets Manager
+                            </h1>
+                            <p class="text-gray-400">Preset management coming soon...</p>
+                        </div>
+                    </div>
+                </sl-tab-panel>
+                
+                <!-- Future Settings Panel -->
+                <sl-tab-panel name="settings" v-if="showAdvancedTabs">
+                    <div class="layout-section">
+                        <div class="max-w-6xl mx-auto">
+                            <h1 class="text-3xl font-bold mb-6 text-orange-400">
+                                ⚙️ Settings
+                            </h1>
+                            <p class="text-gray-400">Application settings coming soon...</p>
+                        </div>
+                    </div>
+                </sl-tab-panel>
+            </sl-tab-group>
+        </div>
+    </div>
+
+    <!-- Vue Component Templates -->
+    <script type="text/x-template" id="layout-canvas-template">
+        <div class="layout-canvas-container" :class="containerClass">
+            <!-- Debug Info (Editor Mode Only) -->
+            <div v-if="mode === 'editor'" class="absolute top-2 left-2 text-xs text-yellow-400 bg-red-600 p-2 rounded z-50 border-2 border-yellow-400">
+                Layout: {{ currentLayout ? 'exists' : 'null' }} | 
+                Groups: {{ currentLayout && currentLayout.groups ? currentLayout.groups.length : 'N/A' }} | 
+                Sample: {{ isSampleLayout }} |
+                Name: {{ currentLayout ? currentLayout.name : 'none' }}
+            </div>
+            
+            <!-- Template Condition Debug (Editor Mode Only) -->
+            <div v-if="mode === 'editor'" class="absolute top-2 right-2 text-xs text-green-400 bg-blue-600 p-2 rounded z-50 border-2 border-green-400">
+                !Layout: {{ !currentLayout }} |
+                isSample: {{ isSampleLayout }} |
+                HasGroups: {{ currentLayout && currentLayout.groups && currentLayout.groups.length > 0 }} |
+                EmptyGroups: {{ currentLayout && currentLayout.groups && currentLayout.groups.length === 0 }}
+            </div>
+            
+            <!-- No Layout State -->
+            <template v-if="!currentLayout">
+                <p class="text-gray-400 text-center absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                    📥 Loading layout...
+                </p>
+            </template>
+            
+            <!-- Sample Layout State (Editor Only) -->
+            <template v-else-if="mode === 'editor' && isSampleLayout">
+                <p class="text-gray-400 text-center absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                    📋 This is a sample layout.<br>
+                    Click "New Layout" to start editing.
+                </p>
+            </template>
+            
+            <!-- Empty Layout State (Editor Only) -->
+            <template v-else-if="mode === 'editor' && currentLayout && currentLayout.groups && currentLayout.groups.length === 0">
+                <p class="text-gray-400 text-center absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                    🎛️ Click "Add Group" to start building your layout.<br>
+                    Drag controls here to create your interface.
+                </p>
+            </template>
+            
+            <!-- Render Groups -->
+            <template v-else-if="currentLayout && currentLayout.groups">
+                <!-- Editor Mode: Canvas-style rendering -->
+                <div v-if="mode === 'editor'" v-for="group in currentLayout.groups" :key="'editor-' + group.id"
+                     class="group-canvas-item absolute border-2 rounded-lg p-2 cursor-move"
+                     :class="selectedGroup === group.id ? 'border-blue-400 bg-blue-900/20' : 'border-gray-500 bg-gray-800/60'"
+                     :style="getGroupCanvasStyle(group)"
+                     @click="$emit('group-selected', group.id)">
+                    <h4 class="text-sm font-semibold text-center mb-1">{{ group.label }}</h4>
+                    <div class="text-xs text-gray-400 text-center">{{ group.controls?.length || 0 }} controls</div>
+                </div>
+                
+                <!-- Viewer Mode: Grid-style rendering -->
+                <div v-else-if="mode === 'viewer'" v-for="group in currentLayout.groups" :key="'viewer-' + group.id"
+                     class="group-container border border-gray-600 rounded-lg p-4"
+                     :style="getGroupStyle(group)">
+                    
+                    <h3 class="text-lg font-bold text-gray-300 mb-4 text-center">{{ group.label }}</h3>
+                    
+                    <!-- Controls Layout -->
+                    <div class="flex flex-wrap gap-4 justify-center">
+                        <div v-for="control in group.controls" :key="control.id"
+                             class="control-item flex flex-col items-center">
+                            
+                            <label class="text-xs mb-2 text-center block text-gray-400">
+                                {{ control.label }}
+                            </label>
+                            
+                            <!-- Control rendering would go here -->
+                            <div class="text-xs text-center mt-2 text-blue-400 min-h-4">
+                                Control placeholder
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="editor-toolbar-template">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold">Layout Editor</h2>
+            <div class="flex gap-2">
+                <!-- Always Available Actions -->
+                <sl-button variant="primary" size="small" @click="$emit('new-layout')">
+                    <sl-icon slot="prefix" name="file-plus"></sl-icon>
+                    New Layout
+                </sl-button>
+                
+                <!-- Save Layout Button (if not sample layout) -->
+                <sl-button 
+                    v-if="!isSampleLayout" 
+                    variant="success" 
+                    size="small" 
+                    @click="$emit('save-layout')" 
+                    :loading="savingLayout"
+                >
+                    <sl-icon slot="prefix" name="save"></sl-icon>
+                    {{ hasUnsavedChanges ? 'Save*' : 'Save' }}
+                </sl-button>
+            </div>
+        </div>
+        
+        <!-- Layout Info & Context-Sensitive Actions -->
+        <div class="mb-4 p-3 bg-gray-700 rounded-lg">
+            <div class="flex justify-between items-center">
+                <div>
+                    <span class="text-sm text-gray-400">Current Layout:</span>
+                    <span class="ml-2 font-semibold">{{ currentLayoutDisplayName }}</span>
+                    <span v-if="hasUnsavedChanges" class="ml-2 text-yellow-400 text-xs">● Unsaved changes</span>
+                    <span v-else-if="!isSampleLayout" class="ml-2 text-green-400 text-xs">✓ Saved</span>
+                </div>
+                
+                <!-- Context-Sensitive Action Buttons -->
+                <div class="flex gap-2">
+                    <!-- No Selection - General Actions -->
+                    <template v-if="!selectedItem && !isSampleLayout">
+                        <sl-button variant="neutral" size="small" @click="handleAddGroup">
+                            <sl-icon slot="prefix" name="plus-circle"></sl-icon>
+                            Add Group
+                        </sl-button>
+                    </template>
+                    
+                    <!-- Group Selected Actions -->
+                    <template v-if="selectedItem && selectedItem.type === 'group'">
+                        <sl-button variant="neutral" size="small" @click="$emit('duplicate-group', selectedItem.id)">
+                            <sl-icon slot="prefix" name="copy"></sl-icon>
+                            Duplicate
+                        </sl-button>
+                        <sl-button variant="danger" size="small" @click="$emit('delete-group', selectedItem.id)">
+                            <sl-icon slot="prefix" name="trash"></sl-icon>
+                            Delete Group
+                        </sl-button>
+                    </template>
+                    
+                    <!-- Control Selected Actions -->
+                    <template v-if="selectedItem && selectedItem.type === 'control'">
+                        <sl-button variant="neutral" size="small" @click="$emit('edit-control', selectedItem.id)">
+                            <sl-icon slot="prefix" name="gear"></sl-icon>
+                            Edit Control
+                        </sl-button>
+                        <sl-button variant="warning" size="small" @click="$emit('midi-learn', selectedItem.id)">
+                            <sl-icon slot="prefix" name="music-note"></sl-icon>
+                            MIDI Learn
+                        </sl-button>
+                        <sl-button variant="danger" size="small" @click="$emit('delete-control', selectedItem.id)">
+                            <sl-icon slot="prefix" name="trash"></sl-icon>
+                            Delete
+                        </sl-button>
+                    </template>
+                    
+                    <!-- Selection Info -->
+                    <div v-if="selectedItem" class="flex items-center ml-3 text-xs text-gray-400">
+                        <span v-if="selectedItem.type === 'group'">📦 {{ selectedItem.data.label }}</span>
+                        <span v-if="selectedItem.type === 'control'">🎛️ {{ selectedItem.data.label }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="property-inspector-template">
+        <div class="bg-gray-800 p-6 h-full">
+            <h2 class="text-lg font-semibold mb-4">Property Inspector</h2>
+            
+            <!-- No Selection State -->
+            <div v-if="!selectedItem" class="space-y-4 text-gray-400 text-sm">
+                <div class="text-center py-8">
+                    <p class="text-gray-500">🎯 No item selected</p>
+                    <p class="text-xs mt-2">Click on a group or control to view properties</p>
+                </div>
+            </div>
+            
+            <!-- Group Selection -->
+            <div v-else-if="selectedItem.type === 'group'" class="space-y-4">
+                <div class="border-b border-gray-700 pb-2 mb-4">
+                    <h3 class="text-white font-semibold">📦 Group Properties</h3>
+                    <p class="text-xs text-gray-400">{{ selectedItem.data.label }}</p>
+                </div>
+                
+                <div>
+                    <label class="block text-white text-sm font-semibold mb-2">Group Name</label>
+                    <input 
+                        type="text" 
+                        :value="selectedItem.data.label"
+                        @input="updateProperty('label', $event.target.value)"
+                        class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                    />
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-white text-sm font-semibold mb-2">X Position</label>
+                        <input 
+                            type="number" 
+                            :value="selectedItem.data.x || 0"
+                            @input="updateProperty('x', parseInt($event.target.value))"
+                            class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-white text-sm font-semibold mb-2">Y Position</label>
+                        <input 
+                            type="number" 
+                            :value="selectedItem.data.y || 0"
+                            @input="updateProperty('y', parseInt($event.target.value))"
+                            class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                        />
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-white text-sm font-semibold mb-2">Width</label>
+                        <input 
+                            type="number" 
+                            :value="selectedItem.data.width || 150"
+                            @input="updateProperty('width', parseInt($event.target.value))"
+                            class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-white text-sm font-semibold mb-2">Height</label>
+                        <input 
+                            type="number" 
+                            :value="selectedItem.data.height || 120"
+                            @input="updateProperty('height', parseInt($event.target.value))"
+                            class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                        />
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-white text-sm font-semibold mb-2">Background Color</label>
+                    <input 
+                        type="color" 
+                        :value="selectedItem.data.bgValue || '#374151'"
+                        @input="updateProperty('bgValue', $event.target.value)"
+                        class="w-full h-10 bg-gray-700 border border-gray-600 rounded"
+                    />
+                </div>
+                
+                <div>
+                    <label class="block text-white text-sm font-semibold mb-2">Controls</label>
+                    <p class="text-gray-400 text-sm">{{ selectedItem.data.controls?.length || 0 }} controls in this group</p>
+                </div>
+            </div>
+            
+            <!-- Control Selection (placeholder for now) -->
+            <div v-else-if="selectedItem.type === 'control'" class="space-y-4">
+                <div class="border-b border-gray-700 pb-2 mb-4">
+                    <h3 class="text-white font-semibold">🎛️ Control Properties</h3>
+                    <p class="text-xs text-gray-400">{{ selectedItem.data.label }}</p>
+                </div>
+                
+                <div class="text-gray-400 text-sm">
+                    <p>Control property editing coming soon...</p>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script>
+        const { createApp } = Vue;
+        
+        // Wait for webaudio-controls to initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if webaudio-controls are available
+            console.log('WebAudioControls available:', typeof WebAudioControls !== 'undefined');
+            console.log('Custom elements defined:', customElements.get('webaudio-knob') !== undefined);
+            
+            // Give webaudio-controls time to initialize
+            setTimeout(() => {
+                // Define LayoutCanvas Component
+                const LayoutCanvas = {
+                    template: '#layout-canvas-template',
+                    props: [
+                        'mode', // 'editor' or 'viewer'
+                        'currentLayout',
+                        'isSampleLayout',
+                        'selectedGroup',
+                        'containerClass'
+                    ],
+                    emits: ['group-selected'],
+                    methods: {
+                        getGroupCanvasStyle(group) {
+                            return {
+                                left: `${group.x || 0}px`,
+                                top: `${group.y || 0}px`,
+                                width: `${group.width || 150}px`,
+                                height: `${group.height || 120}px`,
+                                backgroundColor: group.bgValue || '#374151'
+                            };
+                        },
+                        getGroupStyle(group) {
+                            // Calculate grid position from order and grid dimensions
+                            const order = group.order - 1; // Convert to 0-based index
+                            const cols = this.currentLayout.grid.columns;
+                            const x = order % cols;
+                            const y = Math.floor(order / cols);
+                            
+                            return {
+                                gridColumn: (x + 1) + ' / span ' + group.colspan,
+                                gridRow: (y + 1) + ' / span ' + group.rowspan,
+                                backgroundColor: group.bgValue || '#2a2a2a'
+                            };
+                        }
+                    }
+                };
+
+                // Define EditorToolbar Component
+                const EditorToolbar = {
+                    template: '#editor-toolbar-template',
+                    props: [
+                        'selectedItem', 
+                        'currentLayoutDisplayName', 
+                        'isSampleLayout', 
+                        'hasUnsavedChanges', 
+                        'savingLayout'
+                    ],
+                    emits: [
+                        'new-layout',
+                        'save-layout', 
+                        'add-group',
+                        'duplicate-group',
+                        'delete-group',
+                        'edit-control',
+                        'midi-learn',
+                        'delete-control'
+                    ],
+                    methods: {
+                        handleAddGroup() {
+                            console.log('EditorToolbar: Add Group button clicked');
+                            this.$emit('add-group');
+                            console.log('EditorToolbar: add-group event emitted');
+                        }
+                    }
+                };
+
+                // Define PropertyInspector Component
+                const PropertyInspector = {
+                    template: '#property-inspector-template',
+                    props: ['selectedItem'],
+                    emits: ['property-changed'],
+                    methods: {
+                        updateProperty(key, value) {
+                            this.$emit('property-changed', {
+                                type: this.selectedItem.type,
+                                id: this.selectedItem.id,
+                                property: key,
+                                value: value
+                            });
+                        }
+                    }
+                };
+
+                createApp({
+                    data() {
+                        return {
+                            loading: true,
+                            error: null,
+                            layouts: [],
+                            parameters: [],
+                            currentLayout: null,
+                            selectedLayoutName: '',
+                            controlValues: {},
+                            showAdvancedTabs: true,
+                            
+                            // Layout Editor State
+                            hasUnsavedChanges: false,
+                            savingLayout: false,
+                            selectedGroup: null,
+                            selectedItem: null, // New unified selection model: { type: 'group'|'control', id: string, data: object }
+                            
+                            // Settings data - synced with settings.json
+                            settings: {
+                                version: "1.0.0",
+                                audio: {
+                                    inputDeviceId: null,
+                                    inputDeviceName: "Not Selected",
+                                    outputDeviceId: null,
+                                    outputDeviceName: "Default Audio Device",
+                                    sampleRate: 44100,
+                                    bufferSize: 512
+                                },
+                                layout: {
+                                    currentLayoutName: "Not Selected",
+                                    currentLayoutPath: null,
+                                    recentLayouts: []
+                                },
+                                ui: {
+                                    theme: "dark",
+                                    showAdvancedTabs: true,
+                                    lastActiveTab: "viewer"
+                                },
+                                midi: {
+                                    learnMode: false,
+                                    inputDeviceId: null,
+                                    inputDeviceName: "Not Selected"
+                                },
+                                server: {
+                                    port: 8080,
+                                    autoStart: true,
+                                    logLevel: "info"
+                                },
+                                lastModified: null,
+                                firstRun: true
+                            }
+                        };
+                    },
+                    
+                    components: {
+                        LayoutCanvas,
+                        EditorToolbar,
+                        PropertyInspector
+                    },
+                    
+                    computed: {
+                        dynamicGridStyle() {
+                            if (!this.currentLayout) return {};
+                            return {
+                                '--grid-cols': `repeat(${this.currentLayout.grid.columns}, 1fr)`,
+                                '--grid-rows': `repeat(${this.currentLayout.grid.rows}, minmax(300px, auto))`,
+                                '--grid-gap': `${Math.max(this.currentLayout.grid.gutter, 16)}px`
+                            };
+                        },
+                        
+                        // Generate webaudio-controls colors string: knob;background;highlight
+                        audioControlColors() {
+                            const primary = '#3b82f6';   // --audio-primary
+                            const dark = '#1e293b';      // --audio-dark  
+                            const accent = '#60a5fa';    // --audio-accent
+                            return `${primary};${dark};${accent}`;
+                        },
+                        
+                        // Layout Editor Computed Properties
+                        isSampleLayout() {
+                            if (!this.currentLayout) return true; // Treat null as sample layout
+                            return this.currentLayout.name && (
+                                this.currentLayout.name.includes('Demo Layout') ||
+                                this.currentLayout.name.includes('Sample') ||
+                                !this.currentLayout.isCustom
+                            );
+                        },
+                        
+                        currentLayoutDisplayName() {
+                            if (!this.currentLayout) return 'Loading...';
+                            return this.currentLayout.name || 'Untitled Layout';
+                        },
+                        
+                        canvasStyle() {
+                            return {
+                                height: this.isSampleLayout ? '400px' : '500px',
+                                minHeight: '300px'
+                            };
+                        }
+                    },
+                    
+                    methods: {
+                        async loadData() {
+                            try {
+                                this.loading = true;
+                                this.error = null;
+
+                                // Load layouts and parameters in parallel
+                                const [layoutsResponse, parametersResponse] = await Promise.all([
+                                    fetch('/api/layouts'),
+                                    fetch('/api/parameters')
+                                ]);
+
+                                if (!layoutsResponse.ok) {
+                                    throw new Error('Failed to load layouts: ' + layoutsResponse.statusText);
+                                }
+                                if (!parametersResponse.ok) {
+                                    throw new Error('Failed to load parameters: ' + parametersResponse.statusText);
+                                }
+
+                                this.layouts = await layoutsResponse.json();
+                                this.parameters = await parametersResponse.json();
+
+                                console.log('Loaded parameters structure:', this.parameters);
+                                console.log('First parameter example:', this.parameters[0]);
+
+                                // Select first layout by default
+                                if (this.layouts.length > 0) {
+                                    this.selectedLayoutName = this.layouts[0].name;
+                                    await this.selectLayout();
+                                }
+
+                            } catch (err) {
+                                this.error = err.message;
+                                console.error('Failed to load data:', err);
+                            } finally {
+                                this.loading = false;
+                            }
+                        },
+
+                        async selectLayout() {
+                            if (!this.selectedLayoutName) return;
+
+                            try {
+                                const response = await fetch('/api/layouts/' + encodeURIComponent(this.selectedLayoutName));
+                                if (!response.ok) {
+                                    throw new Error('Failed to load layout: ' + response.statusText);
+                                }
+                                this.currentLayout = await response.json();
+                                this.initializeControlValues();
+                            } catch (err) {
+                                this.error = err.message;
+                                console.error('Failed to load layout:', err);
+                            }
+                        },
+
+                        initializeControlValues() {
+                            if (!this.currentLayout || !this.currentLayout.groups) return;
+
+                            console.log('Initializing control values...');
+                            console.log('Parameters available:', this.parameters.length);
+                            console.log('Current layout:', this.currentLayout.name);
+
+                            this.controlValues = {};
+                            this.currentLayout.groups.forEach(group => {
+                                group.controls.forEach(control => {
+                                    control.targets.forEach(target => {
+                                        if (target.parameterAddress !== undefined) {
+                                            const param = this.parameters.find(p => p.address === target.parameterAddress);
+                                            if (param) {
+                                                // Use currentValue instead of minValue for proper initialization
+                                                let initialValue = param.currentValue !== undefined ? param.currentValue : param.defaultValue;
+                                                
+                                                console.log(`Parameter ${param.displayName} (addr:${param.address}):`, {
+                                                    currentValue: param.currentValue,
+                                                    defaultValue: param.defaultValue,
+                                                    unit: param.unit,
+                                                    initialValue: initialValue
+                                                });
+                                                
+                                                // For boolean parameters, ensure proper boolean state
+                                                if (param.unit === 'Boolean') {
+                                                    initialValue = initialValue > 0.5;
+                                                }
+                                                // For indexed parameters, ensure integer index
+                                                else if (param.unit === 'Indexed') {
+                                                    initialValue = Math.round(initialValue);
+                                                }
+                                                
+                                                this.controlValues[control.id] = initialValue;
+                                                console.log(`Initialized control ${control.id} (${control.label}) to currentValue: ${initialValue}`);
+                                            } else {
+                                                console.warn(`Parameter not found for address ${target.parameterAddress}`);
+                                            }
+                                        }
+                                    });
+                                });
+                            });
+                            
+                            console.log('Final controlValues:', this.controlValues);
+                        },
+
+                        getControlValue(control) {
+                            return this.controlValues[control.id] || 0;
+                        },
+
+                        getKnobStep(control) {
+                            // For indexed parameters, use step of 1
+                            const param = this.parameters.find(p => p.address === control.targets[0]?.parameterAddress);
+                            if (param && param.unit === 'Indexed') {
+                                return 1;
+                            }
+                            // For continuous parameters, calculate a reasonable step
+                            if (param) {
+                                const range = param.maxValue - param.minValue;
+                                return range / 100; // 100 steps across the range
+                            }
+                            return 0.01; // Default step
+                        },
+
+                        setControlValue(control, value) {
+                            this.controlValues[control.id] = parseFloat(value);
+                            console.log(`Control ${control.id} changed to ${value}`);
+                            // TODO: Send to Audio Unit via Go backend
+                        },
+
+                        toggleControl(control) {
+                            this.controlValues[control.id] = !this.controlValues[control.id];
+                            console.log(`Control ${control.id} toggled to ${this.controlValues[control.id]}`);
+                        },
+
+                        getMidiCC(control) {
+                            // Find MIDI CC from control targets
+                            for (const target of control.targets) {
+                                if (target.ccMidi) {
+                                    return target.ccMidi;
+                                }
+                            }
+                            return null;
+                        },
+
+                        handleMidiLearn(control, midiCC) {
+                            console.log(`Control ${control.id} learned MIDI CC ${midiCC}`);
+                            // TODO: Update layout with new MIDI binding and save
+                        },
+
+                        formatControlValue(control) {
+                            const value = this.getControlValue(control);
+                            for (const target of control.targets) {
+                                if (target.parameterAddress !== undefined) {
+                                    const param = this.parameters.find(p => p.address === target.parameterAddress);
+                                    if (param) {
+                                        if (param.unit === 'Boolean') return value ? 'ON' : 'OFF';
+                                        if (param.unit === 'Indexed' && param.indexedValues) {
+                                            return param.indexedValues[Math.floor(value)] || value;
+                                        }
+                                    }
+                                }
+                            }
+                            return Number(value).toFixed(2);
+                        },
+
+                        getGroupStyle(group) {
+                            // Calculate grid position from order and grid dimensions
+                            const order = group.order - 1; // Convert to 0-based index
+                            const cols = this.currentLayout.grid.columns;
+                            const x = order % cols;
+                            const y = Math.floor(order / cols);
+                            
+                            return {
+                                gridColumn: (x + 1) + ' / span ' + group.colspan,
+                                gridRow: (y + 1) + ' / span ' + group.rowspan,
+                                backgroundColor: group.bgValue || '#2a2a2a'
+                            };
+                        },
+
+                        loadLayoutViewer() {
+                            console.log('Loading layout viewer...');
+                            if (this.layouts.length === 0) {
+                                this.loadData();
+                            }
+                        },
+                        
+                        loadLayoutEditor() {
+                            console.log('Loading layout editor...');
+                            // Future: Initialize canvas, load parameter tree
+                        },
+                        
+                        loadPresets() {
+                            console.log('Loading presets...');
+                            // Future: Fetch saved presets
+                        },
+                        
+                        loadSettings() {
+                            console.log('Loading settings...');
+                            // Future: Load application preferences
+                        },
+                        
+                        // Layout Editor Methods
+                        async createNewLayout() {
+                            const layoutName = prompt('Enter name for new layout:');
+                            if (!layoutName || layoutName.trim() === '') return;
+                            
+                            // Create empty layout structure
+                            const newLayout = {
+                                name: layoutName.trim(),
+                                isCustom: true,
+                                grid: {
+                                    columns: 4,
+                                    rows: 3,
+                                    width: 1200,
+                                    height: 800
+                                },
+                                groups: [],
+                                version: "1.0"
+                            };
+                            
+                            console.log('Creating new layout:', newLayout);
+                            this.currentLayout = newLayout;
+                            console.log('After assignment, this.currentLayout:', this.currentLayout);
+                            console.log('currentLayoutDisplayName should now be:', this.currentLayoutDisplayName);
+                            this.selectedLayoutName = newLayout.name;
+                            this.hasUnsavedChanges = true;
+                            this.selectedGroup = null;
+                            this.selectedItem = null;
+                            
+                            console.log('Created new layout:', newLayout.name);
+                        },
+                        
+                        async saveCurrentLayout() {
+                            if (!this.currentLayout || this.isSampleLayout) return;
+                            
+                            this.savingLayout = true;
+                            try {
+                                // TODO: Save to IndexedDB as draft first
+                                await this.saveDraftToIndexedDB();
+                                
+                                // TODO: Save to backend
+                                const response = await fetch('/api/layouts/save', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        name: this.currentLayout.name,
+                                        layout: this.currentLayout
+                                    })
+                                });
+                                
+                                if (response.ok) {
+                                    this.hasUnsavedChanges = false;
+                                    // TODO: Clear IndexedDB draft
+                                    console.log('Layout saved successfully');
+                                } else {
+                                    throw new Error('Failed to save layout');
+                                }
+                            } catch (error) {
+                                console.error('Save failed:', error);
+                                alert('Failed to save layout: ' + error.message);
+                            } finally {
+                                this.savingLayout = false;
+                            }
+                        },
+                        
+                        addNewGroup() {
+                            console.log('Main app: addNewGroup method called');
+                            console.log('Main app: currentLayout state:', this.currentLayout);
+                            console.log('Main app: currentLayoutDisplayName:', this.currentLayoutDisplayName);
+                            console.log('Main app: isSampleLayout:', this.isSampleLayout);
+                            
+                            if (!this.currentLayout || this.isSampleLayout) {
+                                console.log('Main app: Cannot add group - no layout or sample layout');
+                                return;
+                            }
+                            
+                            const groupName = prompt('Enter group name:');
+                            console.log('Main app: Group name entered:', groupName);
+                            if (!groupName || groupName.trim() === '') {
+                                console.log('Main app: No valid group name provided');
+                                return;
+                            }
+                            
+                            // Initialize groups array if it doesn't exist
+                            if (!this.currentLayout.groups) {
+                                this.currentLayout.groups = [];
+                            }
+                            
+                            const newGroup = {
+                                id: 'group_' + Date.now(),
+                                label: groupName.trim(),
+                                order: this.currentLayout.groups.length + 1,
+                                colspan: 1,
+                                rowspan: 1,
+                                bgValue: '#374151',
+                                controls: [],
+                                x: 50 + (this.currentLayout.groups.length * 120), // Stagger position
+                                y: 50 + (this.currentLayout.groups.length * 100),
+                                width: 150,
+                                height: 120
+                            };
+                            
+                            this.currentLayout.groups.push(newGroup);
+                            console.log('Main app: Groups after push:', this.currentLayout.groups.length);
+                            console.log('Main app: Current groups:', this.currentLayout.groups);
+                            this.hasUnsavedChanges = true;
+                            this.selectedGroup = newGroup.id;
+                            
+                            // Force Vue to re-render
+                            this.$forceUpdate();
+                            console.log('Main app: Forced Vue update');
+                            
+                            console.log('Added new group:', newGroup.label);
+                        },
+                        
+                        deleteSelectedGroup() {
+                            if (!this.selectedGroup || !this.currentLayout || !this.currentLayout.groups || this.isSampleLayout) return;
+                            
+                            const group = this.currentLayout.groups.find(g => g.id === this.selectedGroup);
+                            if (!group) return;
+                            
+                            if (confirm(`Delete group "${group.label}"? This cannot be undone.`)) {
+                                this.currentLayout.groups = this.currentLayout.groups.filter(g => g.id !== this.selectedGroup);
+                                this.hasUnsavedChanges = true;
+                                this.selectedGroup = null;
+                                
+                                console.log('Deleted group:', group.label);
+                            }
+                        },
+                        
+                        selectGroup(groupId) {
+                            // Update old selectedGroup for backward compatibility
+                            this.selectedGroup = this.selectedGroup === groupId ? null : groupId;
+                            
+                            // Update new unified selection model
+                            if (this.selectedGroup) {
+                                const group = this.currentLayout.groups.find(g => g.id === groupId);
+                                if (group) {
+                                    this.selectedItem = {
+                                        type: 'group',
+                                        id: groupId,
+                                        data: group
+                                    };
+                                }
+                            } else {
+                                this.selectedItem = null;
+                            }
+                        },
+                        
+                        handlePropertyChanged(changeEvent) {
+                            console.log('Property changed:', changeEvent);
+                            
+                            if (changeEvent.type === 'group' && this.currentLayout && this.currentLayout.groups) {
+                                const group = this.currentLayout.groups.find(g => g.id === changeEvent.id);
+                                if (group) {
+                                    // Update the group property
+                                    group[changeEvent.property] = changeEvent.value;
+                                    
+                                    // Update the selectedItem data to reflect the change
+                                    if (this.selectedItem && this.selectedItem.id === changeEvent.id) {
+                                        this.selectedItem.data[changeEvent.property] = changeEvent.value;
+                                    }
+                                    
+                                    // Mark as having unsaved changes
+                                    this.hasUnsavedChanges = true;
+                                }
+                            }
+                            // TODO: Handle control property changes
+                        },
+                        
+                        getGroupCanvasStyle(group) {
+                            return {
+                                left: (group.x || 0) + 'px',
+                                top: (group.y || 0) + 'px',
+                                width: (group.width || 150) + 'px',
+                                height: (group.height || 120) + 'px'
+                            };
+                        },
+                        
+                        // New Toolbar Action Methods
+                        duplicateGroup(groupId) {
+                            if (!this.currentLayout || !this.currentLayout.groups || this.isSampleLayout) return;
+                            
+                            const originalGroup = this.currentLayout.groups.find(g => g.id === groupId);
+                            if (!originalGroup) return;
+                            
+                            const duplicatedGroup = {
+                                ...originalGroup,
+                                id: 'group_' + Date.now(),
+                                label: originalGroup.label + ' Copy',
+                                x: (originalGroup.x || 0) + 20,
+                                y: (originalGroup.y || 0) + 20,
+                                controls: [...(originalGroup.controls || [])] // Deep copy controls array
+                            };
+                            
+                            this.currentLayout.groups.push(duplicatedGroup);
+                            this.hasUnsavedChanges = true;
+                            
+                            // Select the new duplicated group
+                            this.selectGroup(duplicatedGroup.id);
+                            
+                            console.log('Duplicated group:', duplicatedGroup.label);
+                        },
+                        
+                        editControl(controlId) {
+                            console.log('Edit control:', controlId);
+                            // TODO: Open control editing dialog/panel
+                            alert('Control editing coming soon!');
+                        },
+                        
+                        startMidiLearn(controlId) {
+                            console.log('Start MIDI learn for control:', controlId);
+                            // TODO: Implement MIDI learning mode
+                            alert('MIDI Learn mode coming soon!');
+                        },
+                        
+                        deleteControl(controlId) {
+                            console.log('Delete control:', controlId);
+                            // TODO: Implement control deletion
+                            if (confirm('Delete this control? This cannot be undone.')) {
+                                alert('Control deletion coming soon!');
+                            }
+                        },
+                        
+                        // IndexedDB Draft Management (placeholder for now)
+                        async saveDraftToIndexedDB() {
+                            console.log('TODO: Save draft to IndexedDB');
+                            // Implementation will come next
+                        }
+                    },
+                    
+                    mounted() {
+                        console.log('Vue app mounted');
+                        this.loadData();
+                    }
+                }).mount('#app');
+            }, 100);
+        });
+    </script>
+</body>
+</html>

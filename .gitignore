@@ -1,0 +1,40 @@
+# Ignore build artifacts
+bin/
+*.o
+*.a
+*.wasm
+
+# Ignore Go build cache
+go.sum
+
+# Ignore macOS system files
+.DS_Store
+**/.DS_Store
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore temporary files
+*.tmp
+*.temp
+*.log
+
+# Ignore node modules (legacy from Vue.js days)
+node_modules/
+
+# Keep Archive for reference but ignore its build artifacts
+Archive/node_modules/
+Archive/bin/
+Archive/*.o
+Archive/*.a
+
+# Ignore generated CSS (will be replaced with Go templates)
+frontend/static/style.css
+
+# Ignore local development files
+.env
+.env.local
+config.local.json

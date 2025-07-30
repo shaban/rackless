@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Device Monitor Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .event-log { background: #f0f0f0; padding: 15px; border-radius: 5px; height: 400px; overflow-y: scroll; }
+        .event { margin-bottom: 10px; padding: 8px; border-radius: 3px; }
+        .event.critical { background: #ffebee; border-left: 4px solid #f44336; }
+        .event.warning { background: #fff3e0; border-left: 4px solid #ff9800; }
+        .event.info { background: #e8f5e8; border-left: 4px solid #4caf50; }
+        .event-time { font-size: 0.8em; color: #666; }
+        .event-message { font-weight: bold; }
+        .device-info { font-size: 0.9em; color: #333; }
+        .controls { margin-bottom: 20px; }
+        button { padding: 8px 16px; margin-right: 10px; border: none; border-radius: 3px; cursor: pointer; }
+        .btn-critical { background: #f44336; color: white; }
+        .btn-warning { background: #ff9800; color: white; }
+        .btn-info { background: #4caf50; color: white; }
+        .status { padding: 10px; margin-bottom: 10px; border-radius: 3px; }
+        .status.connected { background: #e8f5e8; color: #2e7d32; }
+        .status.disconnected { background: #ffebee; color: #c62828; }
+    </style>
+</head>
+<body>
+    <h1>🎛️ MC-SoFX Device Monitor Test</h1>
+    
+    <div id="connection-status" class="status disconnected">
+        ❌ Disconnected from device event stream
+    </div>
+
+    <div class="controls">
+        <h3>Test Device Events:</h3>
+        <button class="btn-critical" onclick="triggerEvent('critical')">
+            Critical: Device Unplugged
+        </button>
+        <button class="btn-warning" onclick="triggerEvent('warning')">
+            Warning: Sample Rate Changed
+        </button>
+        <button class="btn-info" onclick="triggerEvent('info')">
+            Info: New Device Added
+        </button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="event-log" id="event-log">
+        <p><em>Connecting to device event stream...</em></p>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let eventCount = 0;
+
+        function connectToEvents() {
+            console.log('Connecting to SSE endpoint...');
+            eventSource = new EventSource('/api/device-events');
+            
+            eventSource.onopen = function(event) {
+                console.log('SSE connection opened');
+                updateConnectionStatus(true);
+            };
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    const deviceEvent = JSON.parse(event.data);
+                    displayEvent(deviceEvent);
+                } catch (error) {
+                    console.error('Error parsing SSE data:', error);
+                    displayRawEvent(event.data);
+                }
+            };
+            
+            eventSource.onerror = function(event) {
+                console.error('SSE connection error:', event);
+                updateConnectionStatus(false);
+                
+                // Attempt to reconnect after 3 seconds
+                setTimeout(() => {
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        console.log('Attempting to reconnect...');
+                        connectToEvents();
+                    }
+                }, 3000);
+            };
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusElement = document.getElementById('connection-status');
+            if (connected) {
+                statusElement.className = 'status connected';
+                statusElement.innerHTML = '✅ Connected to device event stream';
+            } else {
+                statusElement.className = 'status disconnected';
+                statusElement.innerHTML = '❌ Disconnected from device event stream';
+            }
+        }
+
+        function displayEvent(event) {
+            eventCount++;
+            const logElement = document.getElementById('event-log');
+            const eventElement = document.createElement('div');
+            eventElement.className = `event ${event.severity}`;
+            
+            const timestamp = new Date(event.timestamp || Date.now()).toLocaleTimeString();
+            
+            eventElement.innerHTML = `
+                <div class="event-time">#${eventCount} - ${timestamp}</div>
+                <div class="event-message">${event.message || 'No message'}</div>
+                <div class="device-info">
+                    <strong>${event.name}</strong> (${event.deviceId}) - ${event.category} - ${event.type}
+                </div>
+            `;
+            
+            // Insert at top of log
+            if (logElement.firstChild) {
+                logElement.insertBefore(eventElement, logElement.firstChild);
+            } else {
+                logElement.appendChild(eventElement);
+            }
+            
+            // Keep only last 50 events
+            while (logElement.children.length > 50) {
+                logElement.removeChild(logElement.lastChild);
+            }
+        }
+
+        function displayRawEvent(data) {
+            const logElement = document.getElementById('event-log');
+            const eventElement = document.createElement('div');
+            eventElement.className = 'event info';
+            eventElement.innerHTML = `<div class="event-message">Raw SSE Data:</div><pre>${data}</pre>`;
+            logElement.insertBefore(eventElement, logElement.firstChild);
+        }
+
+        function triggerEvent(severity) {
+            const events = {
+                critical: {
+                    type: "removed",
+                    deviceId: "frontend-test-" + Date.now(),
+                    name: "KATANA Guitar Amp",
+                    category: "audio_input",
+                    severity: "critical",
+                    message: "🚨 Critical: Audio interface disconnected during recording!"
+                },
+                warning: {
+                    type: "changed",
+                    deviceId: "frontend-test-" + Date.now(),
+                    name: "Steep II Audio Interface",
+                    category: "audio_input",
+                    severity: "warning",
+                    message: "⚠️ Warning: Sample rate changed from 48kHz to 44.1kHz"
+                },
+                info: {
+                    type: "added",
+                    deviceId: "frontend-test-" + Date.now(),
+                    name: "New MIDI Controller",
+                    category: "midi_input",
+                    severity: "info",
+                    message: "ℹ️ Info: New MIDI device detected and ready to use"
+                }
+            };
+
+            const event = events[severity];
+            if (event) {
+                fetch('/api/test/device-event', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(event)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Test event triggered:', data);
+                })
+                .catch(error => {
+                    console.error('Error triggering test event:', error);
+                });
+            }
+        }
+
+        function clearLog() {
+            const logElement = document.getElementById('event-log');
+            logElement.innerHTML = '<p><em>Event log cleared.</em></p>';
+            eventCount = 0;
+        }
+
+        // Start connection when page loads
+        window.addEventListener('load', connectToEvents);
+        
+        // Clean up connection when page unloads
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>

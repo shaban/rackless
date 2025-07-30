@@ -1,0 +1,34 @@
+# Build outputs
+mc-sofx-consolidated
+mc-sofx-controller
+rackless-server
+*.a
+*.o
+
+# WASM builds
+*.wasm
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Node modules (if any)
+node_modules/
+
+# Data files (keep structure, ignore content)
+data/settings.json
+data/layouts/*.json
+data/mappings/*.json
+
+# Build tools
+bin/tailwindcss

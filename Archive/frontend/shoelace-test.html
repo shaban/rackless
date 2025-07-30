@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shoelace Integration Test</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/shoelace.css">
+    <script src="/static/vue.global.js"></script>
+    <script src="/static/shoelace.js"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-6">
+    <div id="app">
+        <h1 class="text-2xl font-bold mb-6">Shoelace Integration Test</h1>
+        
+        <!-- Basic Shoelace Components Test -->
+        <div class="space-y-4 max-w-md">
+            <sl-button variant="primary" @click="showAlert">
+                Test Shoelace Button
+            </sl-button>
+            
+            <sl-input label="Device Name" placeholder="Enter device name" v-model="deviceName"></sl-input>
+            
+            <sl-select label="Audio Interface" v-model="selectedInterface">
+                <sl-option value="steep-ii">Steep II</sl-option>
+                <sl-option value="katana">KATANA Guitar Amp</sl-option>
+                <sl-option value="focusrite">Focusrite Scarlett 2i2</sl-option>
+            </sl-select>
+            
+            <sl-range label="Input Gain" min="0" max="100" v-model="inputGain"></sl-range>
+            
+            <sl-switch @sl-change="toggleMode">Background Processing</sl-switch>
+            
+            <div class="mt-4 p-4 bg-gray-800 rounded">
+                <h3 class="font-semibold mb-2">Current Values:</h3>
+                <p><strong>Device Name:</strong> {{ deviceName }}</p>
+                <p><strong>Interface:</strong> {{ selectedInterface }}</p>
+                <p><strong>Gain:</strong> {{ inputGain }}%</p>
+                <p><strong>Background:</strong> {{ backgroundMode ? 'Enabled' : 'Disabled' }}</p>
+            </div>
+        </div>
+        
+        <!-- Modal Test -->
+        <sl-dialog label="Shoelace Alert" :open="alertOpen" @sl-after-hide="alertOpen = false">
+            <p>Shoelace is working correctly! 🎉</p>
+            <p>All components are loading and integrating properly with Vue 3.</p>
+            <sl-button slot="footer" variant="primary" @click="alertOpen = false">
+                Awesome!
+            </sl-button>
+        </sl-dialog>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        
+        createApp({
+            data() {
+                return {
+                    deviceName: 'Neural DSP Plugin',
+                    selectedInterface: 'steep-ii',
+                    inputGain: 50,
+                    backgroundMode: false,
+                    alertOpen: false
+                };
+            },
+            methods: {
+                showAlert() {
+                    this.alertOpen = true;
+                },
+                toggleMode(event) {
+                    this.backgroundMode = event.target.checked;
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

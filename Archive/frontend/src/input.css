@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* Custom CSS properties for dynamic grid layouts */
+:root {
+  --audio-primary: theme('colors.blue.500');
+  --audio-secondary: theme('colors.gray.200');
+  --audio-accent: theme('colors.blue.400');
+  --audio-dark: theme('colors.slate.800');
+  --audio-surface: theme('colors.slate.600');
+  --audio-label: theme('colors.slate.50');
+  --audio-param: theme('colors.slate.400');
+}
+
+/* Dynamic grid utilities that can be controlled by JavaScript */
+.grid-audio-dynamic {
+  display: grid;
+  grid-template-columns: var(--grid-cols, repeat(4, 1fr));
+  grid-template-rows: var(--grid-rows, repeat(2, minmax(300px, auto)));
+  gap: var(--grid-gap, 1rem);
+}
+
+/* Custom webaudio-controls theming */
+webaudio-knob {
+  --primary-color: var(--audio-primary);
+  --secondary-color: var(--audio-secondary);
+  /* Use hex shorthand: knob;background;highlight */
+  color: var(--audio-primary);
+  background: var(--audio-dark);
+  --highlight-color: var(--audio-accent);
+}
+
+webaudio-slider {
+  --primary-color: var(--audio-primary);
+  --secondary-color: var(--audio-secondary);
+  /* Use hex shorthand: knob;background;highlight */
+  color: var(--audio-primary);
+  background: var(--audio-dark);
+  --highlight-color: var(--audio-accent);
+}
+
+webaudio-switch {
+  --primary-color: var(--audio-primary);
+  --secondary-color: var(--audio-secondary);
+  /* Use hex shorthand: knob;background;highlight */
+  color: var(--audio-primary);
+  background: var(--audio-dark);
+  --highlight-color: var(--audio-accent);
+}
