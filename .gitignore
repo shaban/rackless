@@ -43,3 +43,6 @@ frontend/static/style.css
 .env
 .env.local
 config.local.json
+
+# Ignore VSCodeCounter files
+.VSCodeCounter/
