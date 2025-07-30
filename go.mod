@@ -1,4 +1,4 @@
-module github.com/yourusername/rackless
+module github.com/shaban/rackless
 
 go 1.21
 
@@ -7,4 +7,4 @@ require (
 )
 
 // Local development
-// replace github.com/yourusername/rackless => ./
+// replace github.com/shaban/rackless => ./
