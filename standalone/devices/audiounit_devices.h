@@ -39,6 +39,9 @@ char* getDefaultAudioDevices(void);
 char* getMIDIInputDevices(void);
 char* getMIDIOutputDevices(void);
 
+// Audio configuration
+double getDefaultSampleRate(void);
+
 // Utility functions
 int getAudioDeviceCount(int isInput);
 int getMIDIDeviceCount(int isInput);

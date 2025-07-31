@@ -1,6 +1,6 @@
 # Build and Development Makefile for Rackless
 
-.PHONY: help build wasm dev clean test test-unit test-integration test-bench introspection-test compile-objc
+.PHONY: help build wasm frontend frontend-clean frontend-serve frontend-dev dev clean test test-unit test-integration test-bench introspection-test compile-objc
 
 # Default target
 help:
@@ -9,6 +9,9 @@ help:
 	@echo "Available targets:"
 	@echo "  build              - Build native backend server"
 	@echo "  wasm               - Build WASM frontend"
+	@echo "  frontend           - Build frontend (WASM + static files)"
+	@echo "  frontend-serve     - Start frontend development server"
+	@echo "  frontend-dev       - Start frontend in development mode"
 	@echo "  dev                - Start development server with hot reload"
 	@echo "  test               - Run all tests"
 	@echo "  test-unit          - Run unit tests only"
@@ -18,9 +21,7 @@ help:
 	@echo "  device-test        - Test device enumeration"
 	@echo "  audiohost-test     - Test Go audio host controller"
 	@echo "  audio-host         - Build standalone audio host tool"
-	@echo "  clean              - Clean build artifacts"
-	@echo "  css                - Build Tailwind CSS (legacy)"
-	@echo "  css-watch          - Watch and build Tailwind CSS (legacy)"
+	@echo "  clean              - Clean all build artifacts"
 
 # Go build settings
 GO_FILES := $(shell find . -name '*.go' -not -path './Archive/*')
@@ -106,23 +107,27 @@ compile-objc:
 		-framework Foundation -framework CoreAudio -framework AudioToolbox -framework AVFoundation
 	ar rcs pkg/audio/libaudiounit_host.a pkg/audio/audiounit_host.o
 
+# Frontend targets
+frontend:
+	@echo "Building frontend..."
+	@if [ -d "frontend" ]; then cd frontend && $(MAKE); else echo "Frontend directory not found"; fi
+
+frontend-clean:
+	@echo "Cleaning frontend..."
+	@if [ -d "frontend" ]; then cd frontend && $(MAKE) clean; else echo "Frontend directory not found"; fi
+
+frontend-serve:
+	@echo "Starting frontend development server..."
+	@if [ -d "frontend" ]; then cd frontend && $(MAKE) serve; else echo "Frontend directory not found"; fi
+
+frontend-dev:
+	@echo "Starting frontend in development mode..."
+	@if [ -d "frontend" ]; then cd frontend && $(MAKE) dev; else echo "Frontend directory not found"; fi
+
 # Clean build artifacts
-clean:
+clean: frontend-clean
 	@echo "Cleaning build artifacts..."
 	rm -rf bin/
 	rm -f $(WASM_FILE)
 	rm -f pkg/audio/*.o pkg/audio/*.a
 	rm -f *.o *.a
-
-# Legacy CSS build targets (keep for reference during migration)
-css:
-	@echo "Building Tailwind CSS (legacy)..."
-	./bin/tailwindcss -i frontend/src/input.css -o frontend/static/style.css
-
-css-watch:
-	@echo "Watching Tailwind CSS (legacy)..."
-	./bin/tailwindcss -i frontend/src/input.css -o frontend/static/style.css --watch
-
-css-prod:
-	@echo "Building production CSS (legacy)..."
-	./bin/tailwindcss -i frontend/src/input.css -o frontend/static/style.css --minify

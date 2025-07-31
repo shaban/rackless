@@ -1,6 +1,6 @@
 module github.com/shaban/rackless
 
-go 1.21
+go 1.22
 
 require (
     // Add dependencies as needed during development

@@ -724,6 +724,59 @@ char* getMIDIOutputDevices(void) {
     }
 }
 
+double getDefaultSampleRate(void) {
+    @autoreleasepool {
+        NSLog(@"🔍 getDefaultSampleRate called");
+        
+        // Get system default output device
+        AudioObjectPropertyAddress defaultOutputAddress = {
+            kAudioHardwarePropertyDefaultOutputDevice,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+        };
+        
+        AudioDeviceID defaultOutputDeviceID = kAudioObjectUnknown;
+        UInt32 size = sizeof(AudioDeviceID);
+        OSStatus status = AudioObjectGetPropertyData(
+            kAudioObjectSystemObject, 
+            &defaultOutputAddress, 
+            0, NULL, 
+            &size, 
+            &defaultOutputDeviceID
+        );
+        
+        if (status != noErr || defaultOutputDeviceID == kAudioObjectUnknown) {
+            NSLog(@"❌ Failed to get default output device, using 44100 Hz");
+            return 44100.0; // fallback
+        }
+        
+        // Get nominal sample rate from the default output device
+        AudioObjectPropertyAddress sampleRateAddress = {
+            kAudioDevicePropertyNominalSampleRate,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+        };
+        
+        Float64 sampleRate = 44100.0;
+        size = sizeof(Float64);
+        status = AudioObjectGetPropertyData(
+            defaultOutputDeviceID, 
+            &sampleRateAddress, 
+            0, NULL, 
+            &size, 
+            &sampleRate
+        );
+        
+        if (status != noErr) {
+            NSLog(@"❌ Failed to get device sample rate, using 44100 Hz");
+            return 44100.0; // fallback
+        }
+        
+        NSLog(@"✅ Default sample rate: %.0f Hz", sampleRate);
+        return sampleRate;
+    }
+}
+
 int getAudioDeviceCount(int isInput) {
     NSLog(@"🔍 getAudioDeviceCount called with isInput: %d", isInput);
     return isInput ? 0 : 1;

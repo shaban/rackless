@@ -10,37 +10,6 @@
 #import <CoreMIDI/CoreMIDI.h>
 #import <AudioUnit/AudioUnit.h>
 
-// Get system default sample rate
-Float64 getSystemDefaultSampleRate() {
-    AudioDeviceID defaultDevice;
-    UInt32 size = sizeof(AudioDeviceID);
-    AudioObjectPropertyAddress address = {
-        kAudioHardwarePropertyDefaultOutputDevice,
-        kAudioObjectPropertyScopeGlobal,
-        kAudioObjectPropertyElementMain
-    };
-    
-    OSStatus status = AudioObjectGetPropertyData(kAudioObjectSystemObject, 
-                                               &address, 0, NULL, &size, &defaultDevice);
-    if (status != noErr) {
-        NSLog(@"⚠️  Failed to get default output device, using 44100 Hz");
-        return 44100.0; // fallback
-    }
-    
-    address.mSelector = kAudioDevicePropertyNominalSampleRate;
-    Float64 sampleRate;
-    size = sizeof(Float64);
-    status = AudioObjectGetPropertyData(defaultDevice, &address, 0, NULL, &size, &sampleRate);
-    
-    if (status != noErr) {
-        NSLog(@"⚠️  Failed to get device sample rate, using 44100 Hz");
-        return 44100.0; // fallback
-    }
-    
-    NSLog(@"🎵 Detected system sample rate: %.0f Hz", sampleRate);
-    return sampleRate;
-}
-
 // Device Enumeration Functions
 NSString* enumerateAudioDevices(BOOL isInput) {
     NSMutableArray* devices = [NSMutableArray array];
@@ -158,6 +127,8 @@ typedef struct {
     int bitDepth;
     int bufferSize;
     BOOL enableTestTone;
+    int audioInputDeviceID;    // Audio input device ID
+    int audioInputChannel;     // Audio input channel (0-based)
 } AudioHostConfig;
 
 // Audio Host Engine
@@ -165,12 +136,15 @@ typedef struct {
 @public
     // Core Audio components
     AudioUnit outputUnit;
+    AudioUnit inputUnit;
     
     // Configuration
     double sampleRate;
     int bitDepth;
     int bufferSize;
     BOOL enableTestTone;
+    int audioInputDeviceID;
+    int audioInputChannel;
     
     // State
     BOOL isRunning;
@@ -178,6 +152,9 @@ typedef struct {
     // Test tone generator
     double testTonePhase;
     double testToneFrequency;
+    
+    // Audio input buffer
+    AudioBufferList* inputBufferList;
 }
 
 - (instancetype)initWithConfig:(AudioHostConfig)config;
@@ -229,6 +206,69 @@ static OSStatus AudioRenderCallback(void* inRefCon,
                 }
             }
         }
+    } else if (engine->audioInputDeviceID != -1) {
+        // Get input from guitar using the same HAL unit
+        AudioBufferList inputBufferList = {0};
+        inputBufferList.mNumberBuffers = 1;
+        inputBufferList.mBuffers[0].mNumberChannels = 2;
+        inputBufferList.mBuffers[0].mDataByteSize = inNumberFrames * 2 * sizeof(Float32);
+        
+        // Allocate temporary buffer for input
+        Float32 inputData[inNumberFrames * 2];
+        inputBufferList.mBuffers[0].mData = inputData;
+        
+        // Get input from the HAL unit (input bus = 1)
+        OSStatus status = AudioUnitRender(engine->outputUnit,
+                                        ioActionFlags,
+                                        inTimeStamp,
+                                        1, // Input bus
+                                        inNumberFrames,
+                                        &inputBufferList);
+        
+        if (status == noErr && ioData->mNumberBuffers == 1) {
+            Float32* outputBuffer = (Float32*)ioData->mBuffers[0].mData;
+            Float32* inputBuffer = (Float32*)inputBufferList.mBuffers[0].mData;
+            
+            // Apply gain and copy guitar input to output
+            // Guitar signals are typically much quieter than line level, so we boost them significantly
+            float guitarGain = 20.0f; // Increase guitar signal by 20x (~26dB)
+            
+            static int debugCounter = 0;
+            float maxInputLevel = 0.0f;
+            
+            for (UInt32 frame = 0; frame < inNumberFrames; frame++) {
+                // Get guitar input from the specified channel
+                Float32 rawSample = inputBuffer[frame * 2 + engine->audioInputChannel];
+                Float32 guitarSample = rawSample * guitarGain;
+                
+                // Track max input level for debugging
+                float absLevel = fabsf(rawSample);
+                if (absLevel > maxInputLevel) {
+                    maxInputLevel = absLevel;
+                }
+                
+                // Send to both output channels (mono guitar to stereo output)
+                outputBuffer[frame * 2] = guitarSample;     // Left channel
+                outputBuffer[frame * 2 + 1] = guitarSample; // Right channel
+            }
+            
+            // Debug input levels every few seconds
+            debugCounter++;
+            if (debugCounter >= 2000) { // Print every ~2 seconds at 44.1kHz with 256 buffer
+                if (maxInputLevel > 0.0001f) {
+                    NSLog(@"🎸 Guitar input detected - Level: %.6f (gained: %.6f)", maxInputLevel, maxInputLevel * guitarGain);
+                } else {
+                    NSLog(@"🔇 No guitar input detected (max level: %.6f)", maxInputLevel);
+                }
+                debugCounter = 0;
+            }
+        } else {
+            NSLog(@"❌ Failed to get input from HAL unit: %d", (int)status);
+            // If input failed, generate silence
+            for (UInt32 buffer = 0; buffer < ioData->mNumberBuffers; buffer++) {
+                memset(ioData->mBuffers[buffer].mData, 0, ioData->mBuffers[buffer].mDataByteSize);
+            }
+        }
     } else {
         // Generate silence
         for (UInt32 buffer = 0; buffer < ioData->mNumberBuffers; buffer++) {
@@ -248,6 +288,8 @@ static OSStatus AudioRenderCallback(void* inRefCon,
         bitDepth = config.bitDepth;
         bufferSize = config.bufferSize;
         enableTestTone = config.enableTestTone;
+        audioInputDeviceID = config.audioInputDeviceID;
+        audioInputChannel = config.audioInputChannel;
         isRunning = NO;
         
         // Test tone setup
@@ -259,6 +301,11 @@ static OSStatus AudioRenderCallback(void* inRefCon,
         NSLog(@"   Bit Depth: %d", bitDepth);
         NSLog(@"   Buffer Size: %d samples", bufferSize);
         NSLog(@"   Test Tone: %@", enableTestTone ? @"ON" : @"OFF");
+        if (audioInputDeviceID != -1) {
+            NSLog(@"   Audio Input: Device %d, Channel %d", audioInputDeviceID, audioInputChannel);
+        } else {
+            NSLog(@"   Audio Input: None");
+        }
     }
     return self;
 }
@@ -271,25 +318,67 @@ static OSStatus AudioRenderCallback(void* inRefCon,
     
     OSStatus status;
     
-    // Create output AudioUnit
-    AudioComponentDescription outputDesc = {0};
-    outputDesc.componentType = kAudioUnitType_Output;
-    outputDesc.componentSubType = kAudioUnitSubType_DefaultOutput;
-    outputDesc.componentManufacturer = kAudioUnitManufacturer_Apple;
+    // Use a single AUHAL unit that can handle both input and output
+    AudioComponentDescription halDesc = {0};
+    halDesc.componentType = kAudioUnitType_Output;
+    halDesc.componentSubType = kAudioUnitSubType_HALOutput;
+    halDesc.componentManufacturer = kAudioUnitManufacturer_Apple;
     
-    AudioComponent outputComp = AudioComponentFindNext(NULL, &outputDesc);
-    if (!outputComp) {
-        NSLog(@"❌ Failed to find default output AudioUnit");
+    AudioComponent halComp = AudioComponentFindNext(NULL, &halDesc);
+    if (!halComp) {
+        NSLog(@"❌ Failed to find HAL AudioUnit");
         return NO;
     }
     
-    status = AudioComponentInstanceNew(outputComp, &outputUnit);
+    status = AudioComponentInstanceNew(halComp, &outputUnit);
     if (status != noErr) {
-        NSLog(@"❌ Failed to create output AudioUnit: %d", (int)status);
+        NSLog(@"❌ Failed to create HAL AudioUnit: %d", (int)status);
         return NO;
     }
     
-    // Configure audio format
+    // Enable input on the HAL unit if we have an input device
+    if (audioInputDeviceID != -1) {
+        UInt32 enableInput = 1;
+        status = AudioUnitSetProperty(outputUnit,
+                                     kAudioOutputUnitProperty_EnableIO,
+                                     kAudioUnitScope_Input,
+                                     1, // Input bus
+                                     &enableInput,
+                                     sizeof(enableInput));
+        if (status != noErr) {
+            NSLog(@"❌ Failed to enable input on HAL unit: %d", (int)status);
+            return NO;
+        }
+        
+        // Set input device
+        status = AudioUnitSetProperty(outputUnit,
+                                     kAudioOutputUnitProperty_CurrentDevice,
+                                     kAudioUnitScope_Global,
+                                     1, // Input side
+                                     &audioInputDeviceID,
+                                     sizeof(audioInputDeviceID));
+        if (status != noErr) {
+            NSLog(@"❌ Failed to set input device: %d", (int)status);
+            return NO;
+        }
+        
+        NSLog(@"✅ HAL AudioUnit configured for input device %d", audioInputDeviceID);
+    }
+    
+    // Enable output on the HAL unit (should be enabled by default, but let's be explicit)
+    UInt32 enableOutput = 1;
+    status = AudioUnitSetProperty(outputUnit,
+                                 kAudioOutputUnitProperty_EnableIO,
+                                 kAudioUnitScope_Output,
+                                 0, // Output bus
+                                 &enableOutput,
+                                 sizeof(enableOutput));
+    if (status != noErr) {
+        NSLog(@"❌ Failed to enable output on HAL unit: %d", (int)status);
+        return NO;
+    }
+    
+    // Configure audio format for the HAL unit
     AudioStreamBasicDescription format = {0};
     format.mSampleRate = sampleRate;
     format.mFormatID = kAudioFormatLinearPCM;
@@ -298,17 +387,33 @@ static OSStatus AudioRenderCallback(void* inRefCon,
     format.mChannelsPerFrame = 2; // Stereo
     format.mBytesPerFrame = format.mChannelsPerFrame * sizeof(Float32);
     format.mFramesPerPacket = 1;
+    format.mFramesPerPacket = 1;
     format.mBytesPerPacket = format.mBytesPerFrame;
     
+    // Set format for output (bus 0)
     status = AudioUnitSetProperty(outputUnit,
                                  kAudioUnitProperty_StreamFormat,
                                  kAudioUnitScope_Input,
-                                 0,
+                                 0, // Output bus
                                  &format,
                                  sizeof(format));
     if (status != noErr) {
         NSLog(@"❌ Failed to set output format: %d", (int)status);
         return NO;
+    }
+    
+    // Set format for input (bus 1) if we have input
+    if (audioInputDeviceID != -1) {
+        status = AudioUnitSetProperty(outputUnit,
+                                     kAudioUnitProperty_StreamFormat,
+                                     kAudioUnitScope_Output,
+                                     1, // Input bus
+                                     &format,
+                                     sizeof(format));
+        if (status != noErr) {
+            NSLog(@"❌ Failed to set input format: %d", (int)status);
+            return NO;
+        }
     }
     
     // Set render callback
@@ -481,12 +586,14 @@ void processCommand(AudioHostEngine* engine, NSString* command) {
 // Main function
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
-        // Default configuration
+        // Default configuration - sample rate must be provided via command line
         AudioHostConfig config = {
-            .sampleRate = getSystemDefaultSampleRate(),
+            .sampleRate = 44100.0, // Default fallback - should be overridden
             .bitDepth = 32,
             .bufferSize = 256,
-            .enableTestTone = YES
+            .enableTestTone = NO,  // Disable test tone by default to hear guitar input
+            .audioInputDeviceID = -1,  // No input device by default
+            .audioInputChannel = 0     // Default to channel 0 (first channel)
         };
         
         BOOL interactiveMode = YES;
@@ -500,17 +607,23 @@ int main(int argc, const char * argv[]) {
                 config.sampleRate = atof(argv[++i]);
             } else if (strcmp(argv[i], "--buffer-size") == 0 && i + 1 < argc) {
                 config.bufferSize = atoi(argv[++i]);
+            } else if (strcmp(argv[i], "--audio-input-device") == 0 && i + 1 < argc) {
+                config.audioInputDeviceID = atoi(argv[++i]);
+            } else if (strcmp(argv[i], "--audio-input-channel") == 0 && i + 1 < argc) {
+                config.audioInputChannel = atoi(argv[++i]);
             } else if (strcmp(argv[i], "--command-mode") == 0) {
                 commandMode = YES;
                 interactiveMode = NO;
             } else if (strcmp(argv[i], "--help") == 0) {
                 printf("Usage: %s [options]\n", argv[0]);
                 printf("Options:\n");
-                printf("  --no-tone           Disable test tone\n");
-                printf("  --sample-rate <hz>  Set sample rate (default: 44100)\n");
-                printf("  --buffer-size <n>   Set buffer size (default: 256)\n");
-                printf("  --command-mode      Run in command mode (stdin/stdout)\n");
-                printf("  --help              Show this help\n");
+                printf("  --no-tone                    Disable test tone\n");
+                printf("  --sample-rate <hz>           Set sample rate (REQUIRED)\n");
+                printf("  --buffer-size <n>            Set buffer size (default: 256)\n");
+                printf("  --audio-input-device <id>    Set audio input device ID\n");
+                printf("  --audio-input-channel <n>    Set audio input channel (0-based, default: 0)\n");
+                printf("  --command-mode               Run in command mode (stdin/stdout)\n");
+                printf("  --help                       Show this help\n");
                 return 0;
             }
         }

@@ -73,6 +73,10 @@ int main(int argc, const char * argv[]) {
         systemDevices[@"totalMIDIInputDevices"] = @([systemDevices[@"midiInput"] count]);
         systemDevices[@"totalMIDIOutputDevices"] = @([systemDevices[@"midiOutput"] count]);
         
+        // Add default sample rate
+        double defaultSampleRate = getDefaultSampleRate();
+        systemDevices[@"defaultSampleRate"] = @(defaultSampleRate);
+        
         // Output unified JSON to stdout
         NSError *jsonError;
         NSData *jsonData = [NSJSONSerialization dataWithJSONObject:systemDevices 

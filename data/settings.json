@@ -1,0 +1,18 @@
+{
+  "audioInput": {
+    "deviceId": 145,
+    "deviceName": "Steep II",
+    "channel": 0,
+    "channelCount": 2
+  },
+  "audioOutput": {
+    "deviceId": 87,
+    "deviceName": "External Headphones",
+    "isDefault": true
+  },
+  "sampleRate": 96000,
+  "bufferSize": 256,
+  "bitDepth": 32,
+  "timestamp": "2025-07-30T20:48:00Z",
+  "description": "Audio configuration for Rackless - Generated automatically from device enumeration"
+}
