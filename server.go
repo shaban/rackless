@@ -134,6 +134,25 @@ type DeviceTestResponse struct {
 	TestedConfig    AudioConfig `json:"testedConfig"`
 }
 
+// Device switch request for changing audio devices
+type DeviceSwitchRequest struct {
+	InputDeviceID  int     `json:"inputDeviceID"`
+	OutputDeviceID int     `json:"outputDeviceID,omitempty"`
+	SampleRate     float64 `json:"sampleRate"`
+	BufferSize     int     `json:"bufferSize,omitempty"`
+}
+
+// Device switch response with boolean ready state
+type DeviceSwitchResponse struct {
+	IsAudioReady     bool   `json:"isAudioReady"`
+	ErrorMessage     string `json:"errorMessage,omitempty"`
+	RequiredAction   string `json:"requiredAction,omitempty"`
+	NewConfig        AudioConfig `json:"newConfig"`
+	PreviousRunning  bool   `json:"previousRunning"`
+	ProcessRestarted bool   `json:"processRestarted"`
+	PID              int    `json:"pid,omitempty"`
+}
+
 // AudioHost process management
 type AudioHostProcess struct {
 	cmd     *exec.Cmd
@@ -312,6 +331,62 @@ func testDeviceConfiguration(config AudioConfig) (bool, string, string) {
 	tempProcess.Stop()
 	
 	return true, "", ""
+}
+
+// Device switching function - stops current audio-host and starts new one
+func switchAudioDevices(config AudioConfig) (bool, string, string, bool, int) {
+	// Step 1: Check if audio-host is currently running
+	audioHostMutex.RLock()
+	wasRunning := audioHostProcess != nil && audioHostProcess.IsRunning()
+	currentProcess := audioHostProcess
+	audioHostMutex.RUnlock()
+
+	// Step 2: Stop current audio-host if running
+	if wasRunning {
+		log.Printf("🔄 Stopping current audio-host to switch devices...")
+		audioHostMutex.Lock()
+		audioHostProcess = nil
+		audioHostMutex.Unlock()
+		
+		err := currentProcess.Stop()
+		if err != nil {
+			return false, 
+				fmt.Sprintf("Failed to stop current audio-host: %v", err),
+				"Try manually stopping audio processes or restart the server",
+				wasRunning, 0
+		}
+		log.Printf("✅ Current audio-host stopped successfully")
+	}
+
+	// Step 3: Validate new configuration
+	if err := validateSampleRate(config); err != nil {
+		return false, 
+			fmt.Sprintf("New device configuration invalid: %v", err),
+			"Please select compatible audio devices and sample rate",
+			wasRunning, 0
+	}
+
+	// Step 4: Start audio-host with new configuration
+	log.Printf("🚀 Starting audio-host with new device configuration...")
+	newProcess, err := startAudioHostProcess(config)
+	if err != nil {
+		return false,
+			fmt.Sprintf("Failed to start audio-host with new devices: %v", err),
+			"Check if new devices are available and not in use by other applications",
+			wasRunning, 0
+	}
+
+	// Step 5: Store the new process
+	audioHostMutex.Lock()
+	audioHostProcess = newProcess
+	audioHostMutex.Unlock()
+
+	// Update reconfiguration system
+	audioReconfig.SetCurrentConfig(config)
+	audioReconfig.SetRunning(true)
+
+	log.Printf("✅ Audio devices switched successfully - new PID %d", newProcess.pid)
+	return true, "", "", wasRunning, newProcess.pid
 }
 
 // Audio-host process management functions
@@ -995,6 +1070,95 @@ func handleTestDevices(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func handleSwitchDevices(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request DeviceSwitchRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Build AudioConfig from switch request
+	config := AudioConfig{
+		SampleRate:         request.SampleRate,
+		AudioInputDeviceID: request.InputDeviceID,
+		AudioInputChannel:  0, // Default to channel 0
+		BufferSize:         request.BufferSize,
+		EnableTestTone:     false, // Default to no test tone when switching devices
+	}
+
+	// Set default buffer size if not specified
+	if config.BufferSize == 0 {
+		config.BufferSize = 256
+	}
+
+	// Validate output device if specified
+	if request.OutputDeviceID != 0 {
+		// Note: Current audio-host doesn't support output device selection
+		// but we can validate it exists for future compatibility
+		found := false
+		for _, device := range serverData.Devices.AudioOutput {
+			if device.DeviceID == request.OutputDeviceID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			response := DeviceSwitchResponse{
+				IsAudioReady:   false,
+				ErrorMessage:   fmt.Sprintf("Output device %d not found", request.OutputDeviceID),
+				RequiredAction: "Select a valid audio output device",
+				NewConfig:      config,
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+	}
+
+	log.Printf("🔄 Switching to device configuration: input %d, sample rate %.0f Hz, buffer %d",
+		config.AudioInputDeviceID, config.SampleRate, config.BufferSize)
+
+	// Switch the devices
+	isReady, errorMsg, action, wasRunning, pid := switchAudioDevices(config)
+
+	response := DeviceSwitchResponse{
+		IsAudioReady:     isReady,
+		ErrorMessage:     errorMsg,
+		RequiredAction:   action,
+		NewConfig:        config,
+		PreviousRunning:  wasRunning,
+		ProcessRestarted: wasRunning && isReady, // Only true if something was running and switch succeeded
+		PID:              pid,
+	}
+
+	if isReady {
+		if wasRunning {
+			log.Printf("✅ Device switch successful - audio-host restarted with PID %d", pid)
+		} else {
+			log.Printf("✅ Device switch successful - audio-host started with PID %d", pid)
+		}
+	} else {
+		log.Printf("❌ Device switch failed: %s", errorMsg)
+		if !isReady {
+			// If switch failed, make sure we're in a clean state
+			audioHostMutex.Lock()
+			audioHostProcess = nil
+			audioHostMutex.Unlock()
+			audioReconfig.SetRunning(false)
+		}
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers
@@ -1030,6 +1194,7 @@ func setupRoutes() *http.ServeMux {
 	mux.HandleFunc("GET /api/audio/suggest-sample-rate", handleSuggestSampleRate)
 	mux.HandleFunc("POST /api/audio/config-change", handleConfigChange)
 	mux.HandleFunc("POST /api/audio/test-devices", handleTestDevices)
+	mux.HandleFunc("POST /api/audio/switch-devices", handleSwitchDevices)
 
 	// Static file serving (for WASM app) with no-cache headers for development
 	fs := http.FileServer(http.Dir("./frontend/static/"))
@@ -1087,6 +1252,7 @@ func main() {
 	log.Println("   • GET /api/audio/status - Get audio-host status")
 	log.Println("   • GET /api/audio/suggest-sample-rate - Find compatible sample rate")
 	log.Println("   • POST /api/audio/test-devices - Test device configuration (returns isAudioReady)")
+	log.Println("   • POST /api/audio/switch-devices - Switch audio devices (stops current, starts new)")
 	log.Println("   • GET / - Static file serving (web app)")
 	log.Println("")
 	log.Println("🎯 Smart audio controller ready with bidirectional communication!")
