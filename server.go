@@ -148,7 +148,7 @@ type DeviceSwitchResponse struct {
 	ErrorMessage     string `json:"errorMessage,omitempty"`
 	RequiredAction   string `json:"requiredAction,omitempty"`
 	NewConfig        AudioConfig `json:"newConfig"`
-	PreviousRunning  bool   `json:"previousRunning"`
+	PreviousProcessRunning  bool   `json:"previousProcessRunning"`
 	ProcessRestarted bool   `json:"processRestarted"`
 	PID              int    `json:"pid,omitempty"`
 }
@@ -742,7 +742,7 @@ func handleStartAudio(w http.ResponseWriter, r *http.Request) {
 		audioHostMutex.RUnlock()
 		response := StartAudioResponse{
 			Success: false,
-			Message: fmt.Sprintf("Audio-host is already running (PID %d)", audioHostProcess.pid),
+			Message: fmt.Sprintf("Audio-host process is already running (PID %d)", audioHostProcess.pid),
 		}
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(response)
@@ -814,7 +814,7 @@ func handleStartAudio(w http.ResponseWriter, r *http.Request) {
 
 	response := StartAudioResponse{
 		Success: true,
-		Message: "Audio-host started successfully with bidirectional communication",
+		Message: "Audio-host process started successfully with bidirectional communication",
 		PID:     process.pid,
 	}
 
@@ -850,7 +850,7 @@ func handleStopAudio(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		response := map[string]interface{}{
 			"success": false,
-			"message": fmt.Sprintf("Failed to stop audio-host: %v", err),
+			"message": fmt.Sprintf("Failed to stop audio-host process: %v", err),
 		}
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(response)
@@ -859,7 +859,7 @@ func handleStopAudio(w http.ResponseWriter, r *http.Request) {
 
 	response := map[string]interface{}{
 		"success": true,
-		"message": "Audio-host stopped successfully",
+		"message": "Audio-host process stopped successfully",
 	}
 
 	// Update the reconfiguration system to reflect stopped state
@@ -931,18 +931,24 @@ func handleAudioStatus(w http.ResponseWriter, r *http.Request) {
 	audioHostMutex.RUnlock()
 
 	status := map[string]interface{}{
-		"running": false,
-		"pid":     nil,
+		"processRunning": false,
+		"engineRunning":  false,
+		"pid":            nil,
 	}
 
 	if process != nil && process.IsRunning() {
-		status["running"] = true
+		status["processRunning"] = true
 		status["pid"] = process.pid
 
 		// Try to get detailed status from audio-host
 		output, err := process.SendCommand("status")
 		if err == nil {
 			status["details"] = output
+			
+			// Parse engine running state from audio-host status
+			if strings.Contains(output, "running=true") {
+				status["engineRunning"] = true
+			}
 		}
 	}
 
@@ -1130,13 +1136,13 @@ func handleSwitchDevices(w http.ResponseWriter, r *http.Request) {
 	isReady, errorMsg, action, wasRunning, pid := switchAudioDevices(config)
 
 	response := DeviceSwitchResponse{
-		IsAudioReady:     isReady,
-		ErrorMessage:     errorMsg,
-		RequiredAction:   action,
-		NewConfig:        config,
-		PreviousRunning:  wasRunning,
-		ProcessRestarted: wasRunning && isReady, // Only true if something was running and switch succeeded
-		PID:              pid,
+		IsAudioReady:           isReady,
+		ErrorMessage:           errorMsg,
+		RequiredAction:         action,
+		NewConfig:              config,
+		PreviousProcessRunning: wasRunning,
+		ProcessRestarted:       wasRunning && isReady, // Only true if something was running and switch succeeded
+		PID:                    pid,
 	}
 
 	if isReady {
