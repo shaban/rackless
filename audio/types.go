@@ -98,6 +98,25 @@ type StartAudioRequest struct {
 	Config AudioConfig `json:"config"`
 }
 
+// Structured response from audio-host commands
+type AudioHostResponse struct {
+	Success   bool        `json:"success"`
+	Error     string      `json:"error,omitempty"`
+	Message   string      `json:"message,omitempty"`
+	ErrorCode int         `json:"error_code,omitempty"`
+	Data      interface{} `json:"data,omitempty"`
+}
+
+// Common audio-host error codes that map to HTTP status codes
+const (
+	AudioErrorNone          = 0   // Success
+	AudioErrorBadRequest    = 400 // Invalid command or parameters
+	AudioErrorNotFound      = 404 // Device/plugin not found
+	AudioErrorConflict      = 409 // Operation conflicts with current state
+	AudioErrorUnavailable   = 503 // Audio hardware unavailable
+	AudioErrorInternalError = 500 // Internal audio-host error
+)
+
 // Audio start response
 type StartAudioResponse struct {
 	Success bool   `json:"success"`
