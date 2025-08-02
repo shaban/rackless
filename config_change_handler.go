@@ -1,0 +1,284 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+)
+
+// Global reconfiguration manager
+var audioReconfig = NewAudioEngineReconfiguration()
+
+// ConfigChangeRequest represents a request to change audio configuration
+type ConfigChangeRequest struct {
+	Config AudioConfig `json:"config"`
+	Reason string      `json:"reason,omitempty"`
+}
+
+// ConfigChangeResponse represents the response to a configuration change
+type ConfigChangeResponse struct {
+	Success          bool                   `json:"success"`
+	Message          string                 `json:"message"`
+	ChangeType       string                 `json:"changeType"`
+	RequiredRestart  bool                   `json:"requiredRestart"`
+	ProcessIDChanged bool                   `json:"processIdChanged"`
+	OldPID           int                    `json:"oldPid,omitempty"`
+	NewPID           int                    `json:"newPid,omitempty"`
+	PreviousConfig   *AudioConfig           `json:"previousConfig,omitempty"`
+	NewConfig        *AudioConfig           `json:"newConfig,omitempty"`
+	Details          *ReconfigurationResult `json:"details,omitempty"`
+}
+
+// handleConfigChange processes intelligent configuration changes
+func handleConfigChange(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request ConfigChangeRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Default reason if not provided
+	if request.Reason == "" {
+		request.Reason = "Configuration change requested"
+	}
+
+	log.Printf("🎯 Config change request: %s", request.Reason)
+
+	// Validate the new configuration first
+	if err := validateAudioConfig(request.Config); err != nil {
+		response := ConfigChangeResponse{
+			Success: false,
+			Message: fmt.Sprintf("Configuration validation failed: %v", err),
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Apply the configuration change through the reconfiguration manager
+	change := ConfigChange{
+		NewConfig:    request.Config,
+		ChangeReason: request.Reason,
+	}
+
+	result, err := audioReconfig.ApplyConfigChange(change)
+	if err != nil {
+		response := ConfigChangeResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to apply configuration change: %v", err),
+			Details: result,
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Convert change type to string
+	changeTypeStr := changeTypeToString(result.ChangeType)
+
+	response := ConfigChangeResponse{
+		Success:          result.Success,
+		Message:          result.Message,
+		ChangeType:       changeTypeStr,
+		RequiredRestart:  result.RequiredRestart,
+		ProcessIDChanged: result.ProcessIDChanged,
+		OldPID:           result.OldPID,
+		NewPID:           result.NewPID,
+		PreviousConfig:   result.PreviousConfig,
+		NewConfig:        result.NewConfig,
+		Details:          result,
+	}
+
+	if result.Success {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+// validateAudioConfig performs comprehensive validation of audio configuration
+func validateAudioConfig(config AudioConfig) error {
+	// Buffer size validation
+	if config.BufferSize != 0 && (config.BufferSize < 32 || config.BufferSize > 1024) {
+		return fmt.Errorf("invalid buffer size: %d (must be 32-1024 samples)", config.BufferSize)
+	}
+
+	// Comprehensive sample rate and device validation
+	if err := validateSampleRate(config); err != nil {
+		return fmt.Errorf("device/sample rate validation failed: %v", err)
+	}
+
+	return nil
+}
+
+// changeTypeToString converts ChangeRequirement enum to string
+func changeTypeToString(changeType ChangeRequirement) string {
+	switch changeType {
+	case NoChangeRequired:
+		return "no-change"
+	case ChainRebuildRequired:
+		return "chain-rebuild"
+	case ProcessRestartRequired:
+		return "process-restart"
+	case DynamicChangeOnly:
+		return "dynamic-change"
+	default:
+		return "unknown"
+	}
+}
+
+// handleGetCurrentConfig returns the current audio configuration
+func handleGetCurrentConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	currentConfig := audioReconfig.GetCurrentConfig()
+	isRunning := audioReconfig.IsRunning()
+
+	response := map[string]interface{}{
+		"success":       true,
+		"isRunning":     isRunning,
+		"currentConfig": currentConfig,
+	}
+
+	if audioHostProcess != nil {
+		response["processId"] = audioHostProcess.pid
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+// Legacy handleStartAudio updated to use reconfiguration manager
+func handleStartAudioWithReconfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request StartAudioRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Set default buffer size if not specified
+	if request.Config.BufferSize == 0 {
+		request.Config.BufferSize = 256
+		log.Printf("🔧 Using default buffer size: %d samples", request.Config.BufferSize)
+	}
+
+	// Use the reconfiguration manager for intelligent handling
+	configChange := ConfigChangeRequest{
+		Config: request.Config,
+		Reason: "Start audio request",
+	}
+
+	// Convert to internal format and delegate to config change handler
+	changeReq := ConfigChange{
+		NewConfig:    configChange.Config,
+		ChangeReason: configChange.Reason,
+	}
+
+	result, err := audioReconfig.ApplyConfigChange(changeReq)
+	if err != nil {
+		response := StartAudioResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to start audio: %v", err),
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	if !result.Success {
+		response := StartAudioResponse{
+			Success: false,
+			Message: result.Message,
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Mark as running in reconfiguration manager
+	audioReconfig.SetRunning(true)
+
+	response := StartAudioResponse{
+		Success: true,
+		Message: result.Message,
+		PID:     result.NewPID,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+// Update stop handler to notify reconfiguration manager
+func handleStopAudioWithReconfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	audioHostMutex.Lock()
+	process := audioHostProcess
+	audioHostMutex.Unlock()
+
+	if process == nil {
+		response := map[string]interface{}{
+			"success": false,
+			"message": "No audio-host process running",
+		}
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Stop the process
+	err := process.Stop()
+	if err != nil {
+		response := map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("Failed to stop audio-host: %v", err),
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Clear global state
+	audioHostMutex.Lock()
+	audioHostProcess = nil
+	audioHostMutex.Unlock()
+
+	// Notify reconfiguration manager
+	audioReconfig.SetRunning(false)
+
+	response := map[string]interface{}{
+		"success": true,
+		"message": "Audio-host stopped successfully",
+	}
+
+	json.NewEncoder(w).Encode(response)
+}

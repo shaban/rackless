@@ -1,0 +1,434 @@
+{
+  "totalMIDIInputDevices" : 10,
+  "defaultSampleRate" : 96000,
+  "midiInput" : [
+    {
+      "uid" : "midi_-126493402",
+      "name" : "Bus 1",
+      "endpointId" : 5672976,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_-126493402",
+      "name" : "Bus 2",
+      "endpointId" : 5672979,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_-126493402",
+      "name" : "Bus 3",
+      "endpointId" : 5672982,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_-126493402",
+      "name" : "Bus 4",
+      "endpointId" : 5672985,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_744763039",
+      "name" : "KATANA",
+      "endpointId" : 5672990,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_744763039",
+      "name" : "KATANA DAW CTRL",
+      "endpointId" : 5672993,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_978941908",
+      "name" : "MIDI1",
+      "endpointId" : 5672997,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_978941908",
+      "name" : "MIDI2",
+      "endpointId" : 5673000,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_1062075019",
+      "name" : "Steep II",
+      "endpointId" : 5673003,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_-1800336608",
+      "name" : "ZOOM AMS-24 Reserved Port",
+      "endpointId" : 5673056,
+      "isOnline" : false
+    }
+  ],
+  "defaults" : {
+    "defaultInput" : 145,
+    "defaultOutput" : 87
+  },
+  "totalAudioInputDevices" : 8,
+  "audioInput" : [
+    {
+      "deviceId" : 145,
+      "uid" : "device_145",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Steep II",
+      "supportedBitDepths" : [
+        24,
+        32
+      ]
+    },
+    {
+      "deviceId" : 94,
+      "uid" : "device_94",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        176400,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Background Music",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 100,
+      "uid" : "device_100",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        176400,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Background Music (UI Sounds)",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 141,
+      "uid" : "device_141",
+      "supportedSampleRates" : [
+        96000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Wave Link MicrophoneFX",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 132,
+      "uid" : "device_132",
+      "supportedSampleRates" : [
+        96000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Wave Link Stream",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 111,
+      "uid" : "device_111",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        176400,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Steam Streaming Microphone",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 119,
+      "uid" : "device_119",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        176400,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Steam Streaming Speakers",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 105,
+      "uid" : "device_105",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        96000
+      ],
+      "channelCount" : 4,
+      "isDefault" : false,
+      "name" : "KATANA",
+      "supportedBitDepths" : [
+        32
+      ]
+    }
+  ],
+  "audioOutput" : [
+    {
+      "deviceId" : 162,
+      "uid" : "device_162",
+      "supportedSampleRates" : [
+        44100,
+        48000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "LG HDR 4K",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 177,
+      "uid" : "device_177",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        96000,
+        176400,
+        192000
+      ],
+      "channelCount" : 6,
+      "isDefault" : false,
+      "name" : "SAMSUNG",
+      "supportedBitDepths" : [
+        16,
+        32
+      ]
+    },
+    {
+      "deviceId" : 145,
+      "uid" : "device_145",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Steep II",
+      "supportedBitDepths" : [
+        24,
+        32
+      ]
+    },
+    {
+      "deviceId" : 94,
+      "uid" : "device_94",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        176400,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Background Music",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 100,
+      "uid" : "device_100",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        176400,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Background Music (UI Sounds)",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 87,
+      "uid" : "device_87",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "External Headphones",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 81,
+      "uid" : "device_81",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Mac mini Speakers",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 111,
+      "uid" : "device_111",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        176400,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Steam Streaming Microphone",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 119,
+      "uid" : "device_119",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        88200,
+        96000,
+        176400,
+        192000
+      ],
+      "channelCount" : 2,
+      "isDefault" : false,
+      "name" : "Steam Streaming Speakers",
+      "supportedBitDepths" : [
+        32
+      ]
+    },
+    {
+      "deviceId" : 105,
+      "uid" : "device_105",
+      "supportedSampleRates" : [
+        44100,
+        48000,
+        96000
+      ],
+      "channelCount" : 4,
+      "isDefault" : false,
+      "name" : "KATANA",
+      "supportedBitDepths" : [
+        32
+      ]
+    }
+  ],
+  "totalMIDIOutputDevices" : 9,
+  "timestamp" : "2025-07-31 18:46:56 +0000",
+  "midiOutput" : [
+    {
+      "uid" : "midi_-126493402",
+      "name" : "Bus 1",
+      "endpointId" : 5672977,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_-126493402",
+      "name" : "Bus 2",
+      "endpointId" : 5672980,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_-126493402",
+      "name" : "Bus 3",
+      "endpointId" : 5672983,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_-126493402",
+      "name" : "Bus 4",
+      "endpointId" : 5672986,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_744763039",
+      "name" : "KATANA",
+      "endpointId" : 5672991,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_744763039",
+      "name" : "KATANA DAW CTRL",
+      "endpointId" : 5672994,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_978941908",
+      "name" : "MIDI1",
+      "endpointId" : 5672998,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_1062075019",
+      "name" : "Steep II",
+      "endpointId" : 5673004,
+      "isOnline" : true
+    },
+    {
+      "uid" : "midi_-1800336608",
+      "name" : "ZOOM AMS-24 Reserved Port",
+      "endpointId" : 5673057,
+      "isOnline" : false
+    }
+  ],
+  "totalAudioOutputDevices" : 10
+}

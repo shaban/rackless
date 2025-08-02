@@ -1,0 +1,42 @@
+# Ignore build artifacts
+bin/
+*.o
+*.a
+*.wasm
+
+# Ignore standalone tool executables
+standalone/audio-host/audio-host
+standalone/inspector/inspector  
+standalone/devices/devices
+
+# Ignore Go build cache
+go.sum
+
+# Ignore macOS system files
+.DS_Store
+**/.DS_Store
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore temporary files
+*.tmp
+*.temp
+*.log
+
+# Ignore node modules (legacy from Vue.js days)
+node_modules/
+
+# Ignore generated CSS (will be replaced with Go templates)
+frontend/static/style.css
+
+# Ignore local development files
+.env
+.env.local
+config.local.json
+
+# Ignore VSCodeCounter files
+.VSCodeCounter/
