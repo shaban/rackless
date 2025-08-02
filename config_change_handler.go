@@ -7,9 +7,6 @@ import (
 	"net/http"
 )
 
-// Global reconfiguration manager
-var audioReconfig = NewAudioEngineReconfiguration()
-
 // ConfigChangeRequest represents a request to change audio configuration
 type ConfigChangeRequest struct {
 	Config AudioConfig `json:"config"`
@@ -31,7 +28,7 @@ type ConfigChangeResponse struct {
 }
 
 // handleConfigChange processes intelligent configuration changes
-func handleConfigChange(w http.ResponseWriter, r *http.Request) {
+func handleConfigChange(w http.ResponseWriter, r *http.Request, audioReconfig *AudioEngineReconfiguration) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -139,7 +136,7 @@ func changeTypeToString(changeType ChangeRequirement) string {
 }
 
 // handleGetCurrentConfig returns the current audio configuration
-func handleGetCurrentConfig(w http.ResponseWriter, r *http.Request) {
+func handleGetCurrentConfig(w http.ResponseWriter, r *http.Request, audioReconfig *AudioEngineReconfiguration) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -165,7 +162,7 @@ func handleGetCurrentConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // Legacy handleStartAudio updated to use reconfiguration manager
-func handleStartAudioWithReconfig(w http.ResponseWriter, r *http.Request) {
+func handleStartAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioReconfig *AudioEngineReconfiguration) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -180,59 +177,45 @@ func handleStartAudioWithReconfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set default buffer size if not specified
-	if request.Config.BufferSize == 0 {
-		request.Config.BufferSize = 256
-		log.Printf("🔧 Using default buffer size: %d samples", request.Config.BufferSize)
-	}
+	config := request.Config
 
-	// Use the reconfiguration manager for intelligent handling
-	configChange := ConfigChangeRequest{
-		Config: request.Config,
-		Reason: "Start audio request",
-	}
-
-	// Convert to internal format and delegate to config change handler
 	changeReq := ConfigChange{
-		NewConfig:    configChange.Config,
-		ChangeReason: configChange.Reason,
+		NewConfig:    config,
+		ChangeReason: "Start audio with specific configuration",
 	}
 
 	result, err := audioReconfig.ApplyConfigChange(changeReq)
 	if err != nil {
-		response := StartAudioResponse{
+		response := ConfigChangeResponse{
 			Success: false,
-			Message: fmt.Sprintf("Failed to start audio: %v", err),
+			Message: fmt.Sprintf("Failed to apply configuration: %v", err),
 		}
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	if !result.Success {
-		response := StartAudioResponse{
-			Success: false,
-			Message: result.Message,
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(response)
-		return
-	}
-
-	// Mark as running in reconfiguration manager
+	// If successful, update the reconfiguration manager state
 	audioReconfig.SetRunning(true)
 
-	response := StartAudioResponse{
-		Success: true,
-		Message: result.Message,
-		PID:     result.NewPID,
+	response := ConfigChangeResponse{
+		Success:          result.Success,
+		Message:          result.Message,
+		ChangeType:       changeTypeToString(result.ChangeType),
+		RequiredRestart:  result.RequiredRestart,
+		ProcessIDChanged: result.ProcessIDChanged,
+		OldPID:           result.OldPID,
+		NewPID:           result.NewPID,
+		PreviousConfig:   result.PreviousConfig,
+		NewConfig:        result.NewConfig,
+		Details:          result,
 	}
 
 	json.NewEncoder(w).Encode(response)
 }
 
 // Update stop handler to notify reconfiguration manager
-func handleStopAudioWithReconfig(w http.ResponseWriter, r *http.Request) {
+func handleStopAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioReconfig *AudioEngineReconfiguration) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os/exec"
 	"strconv"
@@ -170,6 +171,7 @@ var (
 	serverData       ServerData
 	audioHostProcess *AudioHostProcess
 	audioHostMutex   sync.RWMutex
+	audioReconfig    *AudioEngineReconfiguration
 )
 
 // Sample rate validation functions
@@ -1165,6 +1167,43 @@ func handleSwitchDevices(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func handleDebug(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	
+	// Get current audio status
+	audioHostMutex.RLock()
+	process := audioHostProcess
+	audioHostMutex.RUnlock()
+	
+	// Prepare data for the debug dashboard
+	data := DebugDashboardData{
+		ProcessRunning: process != nil && process.IsRunning(),
+		InputDevices:   serverData.Devices.AudioInput,
+		OutputDevices:  serverData.Devices.AudioOutput,
+		PluginCount:    len(serverData.Plugins),
+		DefaultInput:   serverData.Devices.Defaults.DefaultInput,
+		DefaultOutput:  serverData.Devices.Defaults.DefaultOutput,
+		DefaultRate:    serverData.Devices.DefaultSampleRate,
+		Timestamp:      serverData.Devices.Timestamp,
+	}
+	
+	if data.ProcessRunning {
+		data.PID = process.pid
+		// Try to get engine status
+		output, err := process.SendCommand("status")
+		if err == nil {
+			data.StatusDetails = output
+			data.EngineRunning = strings.Contains(output, "running=true")
+		} else {
+			data.StatusDetails = fmt.Sprintf("Error getting status: %v", err)
+		}
+	}
+	
+	// Generate and write HTML response
+	html := renderDebugDashboard(data)
+	w.Write([]byte(html))
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers
@@ -1198,9 +1237,14 @@ func setupRoutes() *http.ServeMux {
 	mux.HandleFunc("POST /api/audio/command", handleAudioCommand)
 	mux.HandleFunc("GET /api/audio/status", handleAudioStatus)
 	mux.HandleFunc("GET /api/audio/suggest-sample-rate", handleSuggestSampleRate)
-	mux.HandleFunc("POST /api/audio/config-change", handleConfigChange)
+	mux.HandleFunc("POST /api/audio/config-change", func(w http.ResponseWriter, r *http.Request) {
+		handleConfigChange(w, r, audioReconfig)
+	})
 	mux.HandleFunc("POST /api/audio/test-devices", handleTestDevices)
 	mux.HandleFunc("POST /api/audio/switch-devices", handleSwitchDevices)
+
+	// Debug/testing routes
+	mux.HandleFunc("GET /debug", handleDebug)
 
 	// Static file serving (for WASM app) with no-cache headers for development
 	fs := http.FileServer(http.Dir("./frontend/static/"))
@@ -1221,8 +1265,31 @@ func setupRoutes() *http.ServeMux {
 	return mux
 }
 
+// checkPortAvailable checks if the specified port is available for binding
+func checkPortAvailable(port string) error {
+	// Try to bind to the port to see if it's available
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		return fmt.Errorf("port %s is not available: %v", port, err)
+	}
+	// Close immediately since we're just checking availability
+	listener.Close()
+	return nil
+}
+
 func main() {
 	log.Println("🚀 Starting Rackless Audio Server...")
+
+	// Initialize the audio reconfiguration manager
+	audioReconfig = NewAudioEngineReconfiguration()
+
+	// Check port availability first before doing any expensive operations
+	const serverPort = "8080"
+	log.Printf("🔍 Checking if port %s is available...", serverPort)
+	if err := checkPortAvailable(serverPort); err != nil {
+		log.Fatalf("❌ Server startup failed: %v\n\n💡 Possible solutions:\n   • Stop any other process using port %s\n   • Wait a moment and try again\n   • Check with: lsof -i :%s", err, serverPort, serverPort)
+	}
+	log.Printf("✅ Port %s is available", serverPort)
 
 	// Load device information
 	if err := loadDevices(); err != nil {
@@ -1245,7 +1312,7 @@ func main() {
 	router := setupRoutes()
 	handler := corsMiddleware(router)
 
-	log.Println("🌐 Starting HTTP server on :8080...")
+	log.Printf("🌐 Starting HTTP server on :%s...", serverPort)
 	log.Println("📡 API endpoints available:")
 	log.Println("   • GET /api/health - Server health status")
 	log.Println("   • GET /api/devices - Audio device information")
@@ -1259,6 +1326,7 @@ func main() {
 	log.Println("   • GET /api/audio/suggest-sample-rate - Find compatible sample rate")
 	log.Println("   • POST /api/audio/test-devices - Test device configuration (returns isAudioReady)")
 	log.Println("   • POST /api/audio/switch-devices - Switch audio devices (stops current, starts new)")
+	log.Println("   • GET /debug - Debug dashboard (HTML interface)")
 	log.Println("   • GET / - Static file serving (web app)")
 	log.Println("")
 	log.Println("🎯 Smart audio controller ready with bidirectional communication!")
@@ -1267,7 +1335,7 @@ func main() {
 	log.Println("   • Real-time command communication with running audio-host processes")
 	log.Println("   • Automatic process management and cleanup")
 
-	err := http.ListenAndServe(":8080", handler)
+	err := http.ListenAndServe(":"+serverPort, handler)
 	if err != nil {
 		log.Fatalf("❌ Failed to start server: %v", err)
 	}
