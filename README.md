@@ -113,7 +113,7 @@ See [`docs/migration.md`](docs/migration.md) for detailed migration plan and rat
 ### Why Go WASM?
 
 1. **Single Language Consistency**: Go patterns throughout the stack
-2. **No State Synchronization**: Backend and frontend share memory space
+2. **Shared Data Structures**: Same Go types for frontend/backend communication
 3. **Compile-time Safety**: Catch template errors before runtime
 4. **AI-Friendly Development**: Predictable debugging, no framework mysteries
 5. **Real-time Performance**: Direct parameter updates without framework overhead
