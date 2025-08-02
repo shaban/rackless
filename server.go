@@ -118,6 +118,22 @@ type AudioCommandResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// Device test request for simplified boolean approach
+type DeviceTestRequest struct {
+	InputDeviceID  int     `json:"inputDeviceID"`
+	OutputDeviceID int     `json:"outputDeviceID,omitempty"`
+	SampleRate     float64 `json:"sampleRate"`
+	BufferSize     int     `json:"bufferSize,omitempty"`
+}
+
+// Device test response with boolean ready state
+type DeviceTestResponse struct {
+	IsAudioReady    bool   `json:"isAudioReady"`
+	ErrorMessage    string `json:"errorMessage,omitempty"`
+	RequiredAction  string `json:"requiredAction,omitempty"`
+	TestedConfig    AudioConfig `json:"testedConfig"`
+}
+
 // AudioHost process management
 type AudioHostProcess struct {
 	cmd     *exec.Cmd
@@ -272,6 +288,30 @@ func findCompatibleSampleRate(inputDeviceID, outputDeviceID int) (int, error) {
 
 	// If no preferred rate found, return the first common rate
 	return commonRates[0], nil
+}
+
+// Device testing function for simplified boolean approach
+func testDeviceConfiguration(config AudioConfig) (bool, string, string) {
+	// Step 1: Validate configuration parameters
+	if err := validateSampleRate(config); err != nil {
+		return false, 
+			fmt.Sprintf("Device configuration invalid: %v", err),
+			"Please select compatible audio devices and sample rate"
+	}
+
+	// Step 2: Try to actually start audio-host with these parameters
+	// This is the real test - can we initialize the audio system?
+	tempProcess, err := startAudioHostProcess(config)
+	if err != nil {
+		return false,
+			fmt.Sprintf("Audio initialization failed: %v", err),
+			"Try different devices or check if audio devices are in use by other applications"
+	}
+
+	// Step 3: Audio-host started successfully, clean up immediately
+	tempProcess.Stop()
+	
+	return true, "", ""
 }
 
 // Audio-host process management functions
@@ -882,6 +922,79 @@ func handleSuggestSampleRate(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func handleTestDevices(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request DeviceTestRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Build AudioConfig from test request
+	config := AudioConfig{
+		SampleRate:         request.SampleRate,
+		AudioInputDeviceID: request.InputDeviceID,
+		BufferSize:         request.BufferSize,
+	}
+
+	// Set default buffer size if not specified
+	if config.BufferSize == 0 {
+		config.BufferSize = 256
+	}
+
+	// Use default output device if not specified
+	if request.OutputDeviceID != 0 {
+		// Note: Current audio-host doesn't support output device selection
+		// but we can validate it exists
+		found := false
+		for _, device := range serverData.Devices.AudioOutput {
+			if device.DeviceID == request.OutputDeviceID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			response := DeviceTestResponse{
+				IsAudioReady:   false,
+				ErrorMessage:   fmt.Sprintf("Output device %d not found", request.OutputDeviceID),
+				RequiredAction: "Select a valid audio output device",
+				TestedConfig:   config,
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+	}
+
+	log.Printf("🧪 Testing device configuration: input %d, sample rate %.0f Hz, buffer %d",
+		config.AudioInputDeviceID, config.SampleRate, config.BufferSize)
+
+	// Test the configuration
+	isReady, errorMsg, action := testDeviceConfiguration(config)
+
+	response := DeviceTestResponse{
+		IsAudioReady:   isReady,
+		ErrorMessage:   errorMsg,
+		RequiredAction: action,
+		TestedConfig:   config,
+	}
+
+	if isReady {
+		log.Printf("✅ Device test successful - audio ready")
+	} else {
+		log.Printf("❌ Device test failed: %s", errorMsg)
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers
@@ -916,6 +1029,7 @@ func setupRoutes() *http.ServeMux {
 	mux.HandleFunc("GET /api/audio/status", handleAudioStatus)
 	mux.HandleFunc("GET /api/audio/suggest-sample-rate", handleSuggestSampleRate)
 	mux.HandleFunc("POST /api/audio/config-change", handleConfigChange)
+	mux.HandleFunc("POST /api/audio/test-devices", handleTestDevices)
 
 	// Static file serving (for WASM app) with no-cache headers for development
 	fs := http.FileServer(http.Dir("./frontend/static/"))
@@ -972,6 +1086,7 @@ func main() {
 	log.Println("   • POST /api/audio/command - Send command to running audio-host")
 	log.Println("   • GET /api/audio/status - Get audio-host status")
 	log.Println("   • GET /api/audio/suggest-sample-rate - Find compatible sample rate")
+	log.Println("   • POST /api/audio/test-devices - Test device configuration (returns isAudioReady)")
 	log.Println("   • GET / - Static file serving (web app)")
 	log.Println("")
 	log.Println("🎯 Smart audio controller ready with bidirectional communication!")
