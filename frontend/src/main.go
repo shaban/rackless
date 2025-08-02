@@ -11,7 +11,7 @@ func main() {
 	// Set up the application
 	document := js.Global().Get("document")
 	app := document.Call("getElementById", "app")
-	
+
 	// Create initial content
 	app.Set("innerHTML", `
 		<div style="padding: 2rem; text-align: center;">
@@ -19,7 +19,7 @@ func main() {
 			<p>Ready to build something amazing!</p>
 		</div>
 	`)
-	
+
 	// Keep the Go program running
 	select {}
 }

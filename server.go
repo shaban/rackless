@@ -1,194 +1,24 @@
 package main
 
 import (
-	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
-	"os/exec"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
+	"github.com/shaban/rackless/audio"
 	"github.com/shaban/rackless/internal/debug"
 )
 
-// Device structures based on standalone/devices output
-type AudioDevice struct {
-	DeviceID             int    `json:"deviceId"`
-	UID                  string `json:"uid"`
-	SupportedSampleRates []int  `json:"supportedSampleRates"`
-	ChannelCount         int    `json:"channelCount"`
-	IsDefault            bool   `json:"isDefault"`
-	IsOnline             bool   `json:"isOnline"`
-	Name                 string `json:"name"`
-	SupportedBitDepths   []int  `json:"supportedBitDepths"`
-}
-
-// Implement debug.Device interface
-func (d AudioDevice) GetDeviceID() int              { return d.DeviceID }
-func (d AudioDevice) GetName() string               { return d.Name }
-func (d AudioDevice) GetSupportedSampleRates() []int { return d.SupportedSampleRates }
-func (d AudioDevice) IsDeviceOnline() bool          { return d.IsOnline }
-func (d AudioDevice) IsDeviceDefault() bool         { return d.IsDefault }
-
-type MIDIDevice struct {
-	UID        string `json:"uid"`
-	Name       string `json:"name"`
-	EndpointID int    `json:"endpointId"`
-	IsOnline   bool   `json:"isOnline"`
-}
-
-type DefaultDevices struct {
-	DefaultInput  int `json:"defaultInput"`
-	DefaultOutput int `json:"defaultOutput"`
-}
-
-type DevicesData struct {
-	TotalMIDIInputDevices   int            `json:"totalMIDIInputDevices"`
-	MIDIInput               []MIDIDevice   `json:"midiInput"`
-	Defaults                DefaultDevices `json:"defaults"`
-	TotalAudioInputDevices  int            `json:"totalAudioInputDevices"`
-	AudioInput              []AudioDevice  `json:"audioInput"`
-	AudioOutput             []AudioDevice  `json:"audioOutput"`
-	TotalMIDIOutputDevices  int            `json:"totalMIDIOutputDevices"`
-	Timestamp               string         `json:"timestamp"`
-	MIDIOutput              []MIDIDevice   `json:"midiOutput"`
-	TotalAudioOutputDevices int            `json:"totalAudioOutputDevices"`
-	DefaultSampleRate       float64        `json:"defaultSampleRate"`
-}
-
-// Plugin structures based on standalone/inspector output
-type PluginParameter struct {
-	DisplayName         string   `json:"displayName"`
-	DefaultValue        float64  `json:"defaultValue"`
-	CurrentValue        float64  `json:"currentValue"`
-	Address             int      `json:"address"`
-	MaxValue            float64  `json:"maxValue"`
-	Unit                string   `json:"unit"`
-	Identifier          string   `json:"identifier"`
-	MinValue            float64  `json:"minValue"`
-	CanRamp             bool     `json:"canRamp"`
-	IsWritable          bool     `json:"isWritable"`
-	RawFlags            int64    `json:"rawFlags"`
-	IndexedValues       []string `json:"indexedValues,omitempty"`
-	IndexedValuesSource string   `json:"indexedValuesSource,omitempty"`
-}
-
-type Plugin struct {
-	Parameters     []PluginParameter `json:"parameters"`
-	ManufacturerID string            `json:"manufacturerID"`
-	Name           string            `json:"name"`
-	Type           string            `json:"type"`
-	Subtype        string            `json:"subtype"`
-}
-
-// Server data - holds the results of both tools
-type ServerData struct {
-	Devices DevicesData `json:"devices"`
-	Plugins []Plugin    `json:"plugins"`
-}
-
-// Audio configuration for starting audio-host
-type AudioConfig struct {
-	SampleRate         float64 `json:"sampleRate"`
-	BufferSize         int     `json:"bufferSize,omitempty"`
-	AudioInputDeviceID int     `json:"audioInputDeviceID,omitempty"`
-	AudioInputChannel  int     `json:"audioInputChannel,omitempty"`
-	EnableTestTone     bool    `json:"enableTestTone,omitempty"`
-	PluginPath         string  `json:"pluginPath,omitempty"`
-}
-
-// Audio start request
-type StartAudioRequest struct {
-	Config AudioConfig `json:"config"`
-}
-
-// Audio start response
-type StartAudioResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	PID     int    `json:"pid,omitempty"`
-}
-
-// Audio command request
-type AudioCommandRequest struct {
-	Command string `json:"command"`
-}
-
-// Audio command response
-type AudioCommandResponse struct {
-	Success bool   `json:"success"`
-	Output  string `json:"output,omitempty"`
-	Error   string `json:"error,omitempty"`
-}
-
-// Device test request for simplified boolean approach
-type DeviceTestRequest struct {
-	InputDeviceID  int     `json:"inputDeviceID"`
-	OutputDeviceID int     `json:"outputDeviceID,omitempty"`
-	SampleRate     float64 `json:"sampleRate"`
-	BufferSize     int     `json:"bufferSize,omitempty"`
-}
-
-// Device test response with boolean ready state
-type DeviceTestResponse struct {
-	IsAudioReady   bool        `json:"isAudioReady"`
-	ErrorMessage   string      `json:"errorMessage,omitempty"`
-	RequiredAction string      `json:"requiredAction,omitempty"`
-	TestedConfig   AudioConfig `json:"testedConfig"`
-}
-
-// Device switch request for changing audio devices
-type DeviceSwitchRequest struct {
-	InputDeviceID  int     `json:"inputDeviceID"`
-	OutputDeviceID int     `json:"outputDeviceID,omitempty"`
-	SampleRate     float64 `json:"sampleRate"`
-	BufferSize     int     `json:"bufferSize,omitempty"`
-}
-
-// Device switch response with boolean ready state
-type DeviceSwitchResponse struct {
-	IsAudioReady           bool        `json:"isAudioReady"`
-	ErrorMessage           string      `json:"errorMessage,omitempty"`
-	RequiredAction         string      `json:"requiredAction,omitempty"`
-	NewConfig              AudioConfig `json:"newConfig"`
-	PreviousProcessRunning bool        `json:"previousProcessRunning"`
-	ProcessRestarted       bool        `json:"processRestarted"`
-	PID                    int         `json:"pid,omitempty"`
-}
-
-// AudioHost process management
-type AudioHostProcess struct {
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	stdout  io.ReadCloser
-	stderr  io.ReadCloser
-	pid     int
-	running bool
-	mu      sync.RWMutex
-	ctx     context.Context
-	cancel  context.CancelFunc
-}
-
-var (
-	serverData       ServerData
-	audioHostProcess *AudioHostProcess
-	audioHostMutex   sync.RWMutex
-	audioReconfig    *AudioEngineReconfiguration
-)
-
 // Sample rate validation functions
-func validateSampleRate(config AudioConfig) error {
+func validateSampleRate(config audio.AudioConfig) error {
 	sampleRate := int(config.SampleRate)
 
 	// Check output device sample rate compatibility
-	for _, device := range serverData.Devices.AudioOutput {
+	for _, device := range audio.Data.Devices.AudioOutput {
 		if device.IsDefault {
 			// Check if default output device is online
 			if !device.IsOnline {
@@ -214,7 +44,7 @@ func validateSampleRate(config AudioConfig) error {
 	// Check input device sample rate compatibility if specified
 	if config.AudioInputDeviceID != 0 {
 		found := false
-		for _, device := range serverData.Devices.AudioInput {
+		for _, device := range audio.Data.Devices.AudioInput {
 			if device.DeviceID == config.AudioInputDeviceID {
 				found = true
 
@@ -252,7 +82,7 @@ func findCompatibleSampleRate(inputDeviceID, outputDeviceID int) (int, error) {
 
 	// Get input device supported rates
 	if inputDeviceID != 0 {
-		for _, device := range serverData.Devices.AudioInput {
+		for _, device := range audio.Data.Devices.AudioInput {
 			if device.DeviceID == inputDeviceID {
 				inputSupportedRates = device.SupportedSampleRates
 				break
@@ -265,7 +95,7 @@ func findCompatibleSampleRate(inputDeviceID, outputDeviceID int) (int, error) {
 
 	// Get output device supported rates (use default if not specified)
 	if outputDeviceID != 0 {
-		for _, device := range serverData.Devices.AudioOutput {
+		for _, device := range audio.Data.Devices.AudioOutput {
 			if device.DeviceID == outputDeviceID {
 				outputSupportedRates = device.SupportedSampleRates
 				break
@@ -273,7 +103,7 @@ func findCompatibleSampleRate(inputDeviceID, outputDeviceID int) (int, error) {
 		}
 	} else {
 		// Use default output device
-		for _, device := range serverData.Devices.AudioOutput {
+		for _, device := range audio.Data.Devices.AudioOutput {
 			if device.IsDefault {
 				outputSupportedRates = device.SupportedSampleRates
 				break
@@ -321,7 +151,7 @@ func findCompatibleSampleRate(inputDeviceID, outputDeviceID int) (int, error) {
 }
 
 // Device testing function for simplified boolean approach
-func testDeviceConfiguration(config AudioConfig) (bool, string, string) {
+func testDeviceConfiguration(config audio.AudioConfig) (bool, string, string) {
 	// Step 1: Validate configuration parameters
 	if err := validateSampleRate(config); err != nil {
 		return false,
@@ -331,7 +161,7 @@ func testDeviceConfiguration(config AudioConfig) (bool, string, string) {
 
 	// Step 2: Try to actually start audio-host with these parameters
 	// This is the real test - can we initialize the audio system?
-	tempProcess, err := startAudioHostProcess(config)
+	tempProcess, err := audio.StartAudioHostProcess(config)
 	if err != nil {
 		return false,
 			fmt.Sprintf("Audio initialization failed: %v", err),
@@ -345,19 +175,19 @@ func testDeviceConfiguration(config AudioConfig) (bool, string, string) {
 }
 
 // Device switching function - stops current audio-host and starts new one
-func switchAudioDevices(config AudioConfig) (bool, string, string, bool, int) {
+func switchAudioDevices(config audio.AudioConfig) (bool, string, string, bool, int) {
 	// Step 1: Check if audio-host is currently running
-	audioHostMutex.RLock()
-	wasRunning := audioHostProcess != nil && audioHostProcess.IsRunning()
-	currentProcess := audioHostProcess
-	audioHostMutex.RUnlock()
+	audio.Mutex.RLock()
+	wasRunning := audio.Process != nil && audio.Process.IsRunning()
+	currentProcess := audio.Process
+	audio.Mutex.RUnlock()
 
 	// Step 2: Stop current audio-host if running
 	if wasRunning {
 		log.Printf("🔄 Stopping current audio-host to switch devices...")
-		audioHostMutex.Lock()
-		audioHostProcess = nil
-		audioHostMutex.Unlock()
+		audio.Mutex.Lock()
+		audio.Process = nil
+		audio.Mutex.Unlock()
 
 		err := currentProcess.Stop()
 		if err != nil {
@@ -379,7 +209,7 @@ func switchAudioDevices(config AudioConfig) (bool, string, string, bool, int) {
 
 	// Step 4: Start audio-host with new configuration
 	log.Printf("🚀 Starting audio-host with new device configuration...")
-	newProcess, err := startAudioHostProcess(config)
+	newProcess, err := audio.StartAudioHostProcess(config)
 	if err != nil {
 		return false,
 			fmt.Sprintf("Failed to start audio-host with new devices: %v", err),
@@ -388,283 +218,16 @@ func switchAudioDevices(config AudioConfig) (bool, string, string, bool, int) {
 	}
 
 	// Step 5: Store the new process
-	audioHostMutex.Lock()
-	audioHostProcess = newProcess
-	audioHostMutex.Unlock()
+	audio.Mutex.Lock()
+	audio.Process = newProcess
+	audio.Mutex.Unlock()
 
 	// Update reconfiguration system
-	audioReconfig.SetCurrentConfig(config)
-	audioReconfig.SetRunning(true)
+	audio.Reconfig.SetCurrentConfig(config)
+	audio.Reconfig.SetRunning(true)
 
-	log.Printf("✅ Audio devices switched successfully - new PID %d", newProcess.pid)
-	return true, "", "", wasRunning, newProcess.pid
-}
-
-// Audio-host process management functions
-func startAudioHostProcess(config AudioConfig) (*AudioHostProcess, error) {
-	// Build audio-host command
-	args := []string{"--command-mode", "--sample-rate", fmt.Sprintf("%.0f", config.SampleRate)}
-
-	if config.BufferSize > 0 {
-		args = append(args, "--buffer-size", strconv.Itoa(config.BufferSize))
-	}
-
-	if config.AudioInputDeviceID > 0 {
-		args = append(args, "--audio-input-device", strconv.Itoa(config.AudioInputDeviceID))
-		args = append(args, "--audio-input-channel", strconv.Itoa(config.AudioInputChannel))
-	}
-
-	if !config.EnableTestTone {
-		args = append(args, "--no-tone")
-	}
-
-	log.Printf("🚀 Starting: ./standalone/audio-host/audio-host %s", strings.Join(args, " "))
-
-	// Create context for process management
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// Create command
-	cmd := exec.CommandContext(ctx, "./standalone/audio-host/audio-host", args...)
-
-	// Set up pipes for bidirectional communication
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to create stdin pipe: %v", err)
-	}
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		stdin.Close()
-		cancel()
-		return nil, fmt.Errorf("failed to create stdout pipe: %v", err)
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		stdin.Close()
-		stdout.Close()
-		cancel()
-		return nil, fmt.Errorf("failed to create stderr pipe: %v", err)
-	}
-
-	// Start the process
-	if err := cmd.Start(); err != nil {
-		stdin.Close()
-		stdout.Close()
-		stderr.Close()
-		cancel()
-		return nil, fmt.Errorf("failed to start audio-host: %v", err)
-	}
-
-	process := &AudioHostProcess{
-		cmd:     cmd,
-		stdin:   stdin,
-		stdout:  stdout,
-		stderr:  stderr,
-		pid:     cmd.Process.Pid,
-		running: true,
-		ctx:     ctx,
-		cancel:  cancel,
-	}
-
-	// Start goroutine to handle process exit
-	go process.handleProcessExit()
-
-	// Wait for "READY" signal from audio-host
-	if err := process.waitForReady(); err != nil {
-		process.Stop()
-		return nil, fmt.Errorf("audio-host failed to start: %v", err)
-	}
-
-	// Now start the stderr handler for ongoing logging
-	go process.handleStderr()
-
-	log.Printf("✅ Audio-host started successfully with PID %d", process.pid)
-	return process, nil
-}
-
-func (p *AudioHostProcess) waitForReady() error {
-	// Read from stderr until we see "READY"
-	timeout := time.NewTimer(5 * time.Second)
-	defer timeout.Stop()
-
-	readyChan := make(chan bool, 1)
-
-	// Start a goroutine to scan stderr for the READY signal
-	go func() {
-		defer close(readyChan)
-		scanner := bufio.NewScanner(p.stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			log.Printf("🎧 Audio-host stderr: %s", line)
-			if strings.Contains(line, "READY") {
-				readyChan <- true
-				return
-			}
-		}
-		// If scanner exits without finding READY, send false
-		readyChan <- false
-	}()
-
-	select {
-	case ready := <-readyChan:
-		if ready {
-			return nil
-		}
-		return fmt.Errorf("audio-host exited without sending READY signal")
-	case <-timeout.C:
-		return fmt.Errorf("timeout waiting for READY signal from audio-host")
-	}
-}
-
-func (p *AudioHostProcess) handleStderr() {
-	scanner := bufio.NewScanner(p.stderr)
-	for scanner.Scan() {
-		line := scanner.Text()
-		log.Printf("🎧 Audio-host: %s", line)
-	}
-}
-
-func (p *AudioHostProcess) handleProcessExit() {
-	p.cmd.Wait()
-	p.mu.Lock()
-	p.running = false
-	p.mu.Unlock()
-	log.Printf("🔇 Audio-host process (PID %d) has exited", p.pid)
-}
-
-func (p *AudioHostProcess) SendCommand(command string) (string, error) {
-	p.mu.RLock()
-	if !p.running {
-		p.mu.RUnlock()
-		return "", fmt.Errorf("audio-host process is not running")
-	}
-	stdin := p.stdin
-	stdout := p.stdout
-	p.mu.RUnlock()
-
-	// Send command
-	_, err := fmt.Fprintf(stdin, "%s\n", command)
-	if err != nil {
-		return "", fmt.Errorf("failed to send command: %v", err)
-	}
-
-	// Read response with timeout
-	respChan := make(chan string, 1)
-	errChan := make(chan error, 1)
-
-	go func() {
-		scanner := bufio.NewScanner(stdout)
-		if scanner.Scan() {
-			respChan <- scanner.Text()
-		} else {
-			errChan <- fmt.Errorf("failed to read response")
-		}
-	}()
-
-	select {
-	case response := <-respChan:
-		return response, nil
-	case err := <-errChan:
-		return "", err
-	case <-time.After(5 * time.Second):
-		return "", fmt.Errorf("timeout waiting for response")
-	}
-}
-
-func (p *AudioHostProcess) Stop() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if !p.running {
-		return nil
-	}
-
-	// Send quit command if possible
-	if p.stdin != nil {
-		fmt.Fprintf(p.stdin, "quit\n")
-		p.stdin.Close()
-	}
-
-	// Cancel context to kill process if needed
-	p.cancel()
-
-	// Wait for process to exit (with timeout)
-	done := make(chan error, 1)
-	go func() {
-		done <- p.cmd.Wait()
-	}()
-
-	select {
-	case <-done:
-		// Process exited gracefully
-	case <-time.After(3 * time.Second):
-		// Force kill if it doesn't exit
-		if p.cmd.Process != nil {
-			p.cmd.Process.Kill()
-		}
-	}
-
-	// Close pipes
-	if p.stdout != nil {
-		p.stdout.Close()
-	}
-	if p.stderr != nil {
-		p.stderr.Close()
-	}
-
-	p.running = false
-	log.Printf("🔇 Audio-host process stopped")
-	return nil
-}
-
-func (p *AudioHostProcess) IsRunning() bool {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.running
-}
-
-func loadDevices() error {
-	log.Println("Loading device information...")
-
-	cmd := exec.Command("./standalone/devices/devices")
-	output, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to run devices tool: %v", err)
-	}
-
-	err = json.Unmarshal(output, &serverData.Devices)
-	if err != nil {
-		return fmt.Errorf("failed to parse devices JSON: %v", err)
-	}
-
-	log.Printf("✅ Loaded %d audio input devices, %d audio output devices, %d MIDI input devices, %d MIDI output devices",
-		serverData.Devices.TotalAudioInputDevices,
-		serverData.Devices.TotalAudioOutputDevices,
-		serverData.Devices.TotalMIDIInputDevices,
-		serverData.Devices.TotalMIDIOutputDevices)
-
-	return nil
-}
-
-func loadPlugins() error {
-	log.Println("Loading plugin information...")
-
-	cmd := exec.Command("./standalone/inspector/inspector")
-	output, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to run inspector tool: %v", err)
-	}
-
-	err = json.Unmarshal(output, &serverData.Plugins)
-	if err != nil {
-		return fmt.Errorf("failed to parse plugins JSON: %v", err)
-	}
-
-	log.Printf("✅ Loaded %d AudioUnit plugins", len(serverData.Plugins))
-
-	return nil
+	log.Printf("✅ Audio devices switched successfully - new PID %d", newProcess.GetPID())
+	return true, "", "", wasRunning, newProcess.GetPID()
 }
 
 // API Handlers
@@ -672,7 +235,7 @@ func handleDevices(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*") // For WASM development
 
-	if err := json.NewEncoder(w).Encode(serverData.Devices); err != nil {
+	if err := json.NewEncoder(w).Encode(audio.Data.Devices); err != nil {
 		http.Error(w, "Failed to encode devices data", http.StatusInternalServerError)
 		return
 	}
@@ -682,7 +245,7 @@ func handlePlugins(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*") // For WASM development
 
-	if err := json.NewEncoder(w).Encode(serverData.Plugins); err != nil {
+	if err := json.NewEncoder(w).Encode(audio.Data.Plugins); err != nil {
 		http.Error(w, "Failed to encode plugins data", http.StatusInternalServerError)
 		return
 	}
@@ -700,12 +263,12 @@ func handlePlugin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if pluginID < 0 || pluginID >= len(serverData.Plugins) {
+	if pluginID < 0 || pluginID >= len(audio.Data.Plugins) {
 		http.Error(w, "Plugin not found", http.StatusNotFound)
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(serverData.Plugins[pluginID]); err != nil {
+	if err := json.NewEncoder(w).Encode(audio.Data.Plugins[pluginID]); err != nil {
 		http.Error(w, "Failed to encode plugin data", http.StatusInternalServerError)
 		return
 	}
@@ -715,7 +278,7 @@ func handleServerData(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*") // For WASM development
 
-	if err := json.NewEncoder(w).Encode(serverData); err != nil {
+	if err := json.NewEncoder(w).Encode(audio.Data); err != nil {
 		http.Error(w, "Failed to encode server data", http.StatusInternalServerError)
 		return
 	}
@@ -727,9 +290,9 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	health := map[string]interface{}{
 		"status":    "healthy",
-		"devices":   len(serverData.Devices.AudioInput) + len(serverData.Devices.AudioOutput),
-		"plugins":   len(serverData.Plugins),
-		"timestamp": serverData.Devices.Timestamp,
+		"devices":   len(audio.Data.Devices.AudioInput) + len(audio.Data.Devices.AudioOutput),
+		"plugins":   len(audio.Data.Plugins),
+		"timestamp": audio.Data.Devices.Timestamp,
 	}
 
 	if err := json.NewEncoder(w).Encode(health); err != nil {
@@ -748,20 +311,20 @@ func handleStartAudio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if audio-host is already running
-	audioHostMutex.RLock()
-	if audioHostProcess != nil && audioHostProcess.IsRunning() {
-		audioHostMutex.RUnlock()
-		response := StartAudioResponse{
+	audio.Mutex.RLock()
+	if audio.Process != nil && audio.Process.IsRunning() {
+		audio.Mutex.RUnlock()
+		response := audio.StartAudioResponse{
 			Success: false,
-			Message: fmt.Sprintf("Audio-host process is already running (PID %d)", audioHostProcess.pid),
+			Message: fmt.Sprintf("Audio-host process is already running (PID %d)", audio.Process.GetPID()),
 		}
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(response)
 		return
 	}
-	audioHostMutex.RUnlock()
+	audio.Mutex.RUnlock()
 
-	var request StartAudioRequest
+	var request audio.StartAudioRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
@@ -774,7 +337,7 @@ func handleStartAudio(w http.ResponseWriter, r *http.Request) {
 	// Validate buffer size (professional audio range: 32-1024 samples)
 	if config.BufferSize != 0 && (config.BufferSize < 32 || config.BufferSize > 1024) {
 		log.Printf("❌ Invalid buffer size: %d (must be 32-1024 samples)", config.BufferSize)
-		response := StartAudioResponse{
+		response := audio.StartAudioResponse{
 			Success: false,
 			Message: fmt.Sprintf("Invalid buffer size: %d (must be 32-1024 samples)", config.BufferSize),
 		}
@@ -792,7 +355,7 @@ func handleStartAudio(w http.ResponseWriter, r *http.Request) {
 	// Validate sample rate compatibility
 	if err := validateSampleRate(config); err != nil {
 		log.Printf("❌ Sample rate validation failed: %v", err)
-		response := StartAudioResponse{
+		response := audio.StartAudioResponse{
 			Success: false,
 			Message: fmt.Sprintf("Sample rate validation failed: %v", err),
 		}
@@ -802,10 +365,10 @@ func handleStartAudio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Start the audio-host process
-	process, err := startAudioHostProcess(config)
+	process, err := audio.StartAudioHostProcess(config)
 	if err != nil {
 		log.Printf("❌ Failed to start audio-host: %v", err)
-		response := StartAudioResponse{
+		response := audio.StartAudioResponse{
 			Success: false,
 			Message: fmt.Sprintf("Failed to start audio-host: %v", err),
 		}
@@ -815,18 +378,18 @@ func handleStartAudio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store the process globally
-	audioHostMutex.Lock()
-	audioHostProcess = process
-	audioHostMutex.Unlock()
+	audio.Mutex.Lock()
+	audio.Process = process
+	audio.Mutex.Unlock()
 
 	// Update the reconfiguration system with the current configuration
-	audioReconfig.SetCurrentConfig(config)
-	audioReconfig.SetRunning(true)
+	audio.Reconfig.SetCurrentConfig(config)
+	audio.Reconfig.SetRunning(true)
 
-	response := StartAudioResponse{
+	response := audio.StartAudioResponse{
 		Success: true,
 		Message: "Audio-host process started successfully with bidirectional communication",
-		PID:     process.pid,
+		PID:     process.GetPID(),
 	}
 
 	json.NewEncoder(w).Encode(response)
@@ -841,10 +404,10 @@ func handleStopAudio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	audioHostMutex.Lock()
-	process := audioHostProcess
-	audioHostProcess = nil
-	audioHostMutex.Unlock()
+	audio.Mutex.Lock()
+	process := audio.Process
+	audio.Process = nil
+	audio.Mutex.Unlock()
 
 	if process == nil || !process.IsRunning() {
 		response := map[string]interface{}{
@@ -874,7 +437,7 @@ func handleStopAudio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update the reconfiguration system to reflect stopped state
-	audioReconfig.SetRunning(false)
+	audio.Reconfig.SetRunning(false)
 
 	json.NewEncoder(w).Encode(response)
 }
@@ -888,18 +451,18 @@ func handleAudioCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var request AudioCommandRequest
+	var request audio.AudioCommandRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	audioHostMutex.RLock()
-	process := audioHostProcess
-	audioHostMutex.RUnlock()
+	audio.Mutex.RLock()
+	process := audio.Process
+	audio.Mutex.RUnlock()
 
 	if process == nil || !process.IsRunning() {
-		response := AudioCommandResponse{
+		response := audio.AudioCommandResponse{
 			Success: false,
 			Error:   "No audio-host process is running",
 		}
@@ -914,7 +477,7 @@ func handleAudioCommand(w http.ResponseWriter, r *http.Request) {
 	output, err := process.SendCommand(request.Command)
 	if err != nil {
 		log.Printf("❌ Command failed: %v", err)
-		response := AudioCommandResponse{
+		response := audio.AudioCommandResponse{
 			Success: false,
 			Error:   fmt.Sprintf("Command failed: %v", err),
 		}
@@ -925,7 +488,7 @@ func handleAudioCommand(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("✅ Command response: %s", output)
 
-	response := AudioCommandResponse{
+	response := audio.AudioCommandResponse{
 		Success: true,
 		Output:  output,
 	}
@@ -937,9 +500,9 @@ func handleAudioStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	audioHostMutex.RLock()
-	process := audioHostProcess
-	audioHostMutex.RUnlock()
+	audio.Mutex.RLock()
+	process := audio.Process
+	audio.Mutex.RUnlock()
 
 	status := map[string]interface{}{
 		"processRunning": false,
@@ -949,7 +512,7 @@ func handleAudioStatus(w http.ResponseWriter, r *http.Request) {
 
 	if process != nil && process.IsRunning() {
 		status["processRunning"] = true
-		status["pid"] = process.pid
+		status["pid"] = process.GetPID()
 
 		// Try to get detailed status from audio-host
 		output, err := process.SendCommand("status")
@@ -1023,14 +586,14 @@ func handleTestDevices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var request DeviceTestRequest
+	var request audio.DeviceTestRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	// Build AudioConfig from test request
-	config := AudioConfig{
+	// Build audio.AudioConfig from test request
+	config := audio.AudioConfig{
 		SampleRate:         request.SampleRate,
 		AudioInputDeviceID: request.InputDeviceID,
 		BufferSize:         request.BufferSize,
@@ -1046,14 +609,14 @@ func handleTestDevices(w http.ResponseWriter, r *http.Request) {
 		// Note: Current audio-host doesn't support output device selection
 		// but we can validate it exists
 		found := false
-		for _, device := range serverData.Devices.AudioOutput {
+		for _, device := range audio.Data.Devices.AudioOutput {
 			if device.DeviceID == request.OutputDeviceID {
 				found = true
 				break
 			}
 		}
 		if !found {
-			response := DeviceTestResponse{
+			response := audio.DeviceTestResponse{
 				IsAudioReady:   false,
 				ErrorMessage:   fmt.Sprintf("Output device %d not found", request.OutputDeviceID),
 				RequiredAction: "Select a valid audio output device",
@@ -1071,7 +634,7 @@ func handleTestDevices(w http.ResponseWriter, r *http.Request) {
 	// Test the configuration
 	isReady, errorMsg, action := testDeviceConfiguration(config)
 
-	response := DeviceTestResponse{
+	response := audio.DeviceTestResponse{
 		IsAudioReady:   isReady,
 		ErrorMessage:   errorMsg,
 		RequiredAction: action,
@@ -1096,14 +659,14 @@ func handleSwitchDevices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var request DeviceSwitchRequest
+	var request audio.DeviceSwitchRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	// Build AudioConfig from switch request
-	config := AudioConfig{
+	// Build audio.AudioConfig from switch request
+	config := audio.AudioConfig{
 		SampleRate:         request.SampleRate,
 		AudioInputDeviceID: request.InputDeviceID,
 		AudioInputChannel:  0, // Default to channel 0
@@ -1121,14 +684,14 @@ func handleSwitchDevices(w http.ResponseWriter, r *http.Request) {
 		// Note: Current audio-host doesn't support output device selection
 		// but we can validate it exists for future compatibility
 		found := false
-		for _, device := range serverData.Devices.AudioOutput {
+		for _, device := range audio.Data.Devices.AudioOutput {
 			if device.DeviceID == request.OutputDeviceID {
 				found = true
 				break
 			}
 		}
 		if !found {
-			response := DeviceSwitchResponse{
+			response := audio.DeviceSwitchResponse{
 				IsAudioReady:   false,
 				ErrorMessage:   fmt.Sprintf("Output device %d not found", request.OutputDeviceID),
 				RequiredAction: "Select a valid audio output device",
@@ -1146,7 +709,7 @@ func handleSwitchDevices(w http.ResponseWriter, r *http.Request) {
 	// Switch the devices
 	isReady, errorMsg, action, wasRunning, pid := switchAudioDevices(config)
 
-	response := DeviceSwitchResponse{
+	response := audio.DeviceSwitchResponse{
 		IsAudioReady:           isReady,
 		ErrorMessage:           errorMsg,
 		RequiredAction:         action,
@@ -1166,10 +729,10 @@ func handleSwitchDevices(w http.ResponseWriter, r *http.Request) {
 		log.Printf("❌ Device switch failed: %s", errorMsg)
 		if !isReady {
 			// If switch failed, make sure we're in a clean state
-			audioHostMutex.Lock()
-			audioHostProcess = nil
-			audioHostMutex.Unlock()
-			audioReconfig.SetRunning(false)
+			audio.Mutex.Lock()
+			audio.Process = nil
+			audio.Mutex.Unlock()
+			audio.Reconfig.SetRunning(false)
 		}
 	}
 
@@ -1180,18 +743,18 @@ func handleDebug(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 
 	// Get current audio status
-	audioHostMutex.RLock()
-	process := audioHostProcess
-	audioHostMutex.RUnlock()
+	audio.Mutex.RLock()
+	process := audio.Process
+	audio.Mutex.RUnlock()
 
 	// Convert AudioDevice slices to debug.Device slices
-	inputDevices := make([]debug.Device, len(serverData.Devices.AudioInput))
-	for i, device := range serverData.Devices.AudioInput {
+	inputDevices := make([]debug.Device, len(audio.Data.Devices.AudioInput))
+	for i, device := range audio.Data.Devices.AudioInput {
 		inputDevices[i] = device
 	}
 	
-	outputDevices := make([]debug.Device, len(serverData.Devices.AudioOutput))
-	for i, device := range serverData.Devices.AudioOutput {
+	outputDevices := make([]debug.Device, len(audio.Data.Devices.AudioOutput))
+	for i, device := range audio.Data.Devices.AudioOutput {
 		outputDevices[i] = device
 	}
 
@@ -1200,15 +763,15 @@ func handleDebug(w http.ResponseWriter, r *http.Request) {
 		ProcessRunning: process != nil && process.IsRunning(),
 		InputDevices:   inputDevices,
 		OutputDevices:  outputDevices,
-		PluginCount:    len(serverData.Plugins),
-		DefaultInput:   serverData.Devices.Defaults.DefaultInput,
-		DefaultOutput:  serverData.Devices.Defaults.DefaultOutput,
-		DefaultRate:    serverData.Devices.DefaultSampleRate,
-		Timestamp:      serverData.Devices.Timestamp,
+		PluginCount:    len(audio.Data.Plugins),
+		DefaultInput:   audio.Data.Devices.Defaults.DefaultInput,
+		DefaultOutput:  audio.Data.Devices.Defaults.DefaultOutput,
+		DefaultRate:    audio.Data.Devices.DefaultSampleRate,
+		Timestamp:      audio.Data.Devices.Timestamp,
 	}
 
 	if data.ProcessRunning {
-		data.PID = process.pid
+		data.PID = process.GetPID()
 		// Try to get engine status
 		output, err := process.SendCommand("status")
 		if err == nil {
@@ -1258,7 +821,7 @@ func setupRoutes() *http.ServeMux {
 	mux.HandleFunc("GET /api/audio/status", handleAudioStatus)
 	mux.HandleFunc("GET /api/audio/suggest-sample-rate", handleSuggestSampleRate)
 	mux.HandleFunc("POST /api/audio/config-change", func(w http.ResponseWriter, r *http.Request) {
-		handleConfigChange(w, r, audioReconfig)
+		handleConfigChange(w, r, audio.Reconfig)
 	})
 	mux.HandleFunc("POST /api/audio/test-devices", handleTestDevices)
 	mux.HandleFunc("POST /api/audio/switch-devices", handleSwitchDevices)
@@ -1300,8 +863,10 @@ func checkPortAvailable(port string) error {
 func main() {
 	log.Println("🚀 Starting Rackless Audio Server...")
 
-	// Initialize the audio reconfiguration manager
-	audioReconfig = NewAudioEngineReconfiguration()
+	// Initialize the audio package
+	if err := audio.Initialize(); err != nil {
+		log.Fatalf("❌ Failed to initialize audio package: %v", err)
+	}
 
 	// Check port availability first before doing any expensive operations
 	const serverPort = "8080"
@@ -1312,21 +877,21 @@ func main() {
 	log.Printf("✅ Port %s is available", serverPort)
 
 	// Load device information
-	if err := loadDevices(); err != nil {
+	if err := audio.LoadDevices(); err != nil {
 		log.Fatalf("❌ Failed to load devices: %v", err)
 	}
 
 	// Load plugin information
-	if err := loadPlugins(); err != nil {
+	if err := audio.LoadPlugins(); err != nil {
 		log.Fatalf("❌ Failed to load plugins: %v", err)
 	}
 
 	log.Println("🎵 Rackless Audio Server initialized successfully!")
 	log.Printf("📊 Server data summary:")
-	log.Printf("   • Default audio input: Device %d", serverData.Devices.Defaults.DefaultInput)
-	log.Printf("   • Default audio output: Device %d", serverData.Devices.Defaults.DefaultOutput)
-	log.Printf("   • Default sample rate: %.0f Hz", serverData.Devices.DefaultSampleRate)
-	log.Printf("   • Total plugins available: %d", len(serverData.Plugins))
+	log.Printf("   • Default audio input: Device %d", audio.Data.Devices.Defaults.DefaultInput)
+	log.Printf("   • Default audio output: Device %d", audio.Data.Devices.Defaults.DefaultOutput)
+	log.Printf("   • Default sample rate: %.0f Hz", audio.Data.Devices.DefaultSampleRate)
+	log.Printf("   • Total plugins available: %d", len(audio.Data.Plugins))
 
 	// Setup routes
 	router := setupRoutes()

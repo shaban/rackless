@@ -1,44 +1,9 @@
-package main
+package audio
 
 import (
 	"fmt"
 	"log"
 )
-
-// AudioEngineReconfiguration handles changes that require rebuilding the audio chain
-type AudioEngineReconfiguration struct {
-	currentConfig *AudioConfig
-	isRunning     bool
-}
-
-// ChangeRequirement indicates what level of reconfiguration is needed
-type ChangeRequirement int
-
-const (
-	NoChangeRequired ChangeRequirement = iota
-	ChainRebuildRequired
-	ProcessRestartRequired
-	DynamicChangeOnly
-)
-
-// ConfigChange represents a requested configuration change
-type ConfigChange struct {
-	NewConfig    AudioConfig
-	ChangeReason string
-}
-
-// ReconfigurationResult contains the outcome of a reconfiguration attempt
-type ReconfigurationResult struct {
-	Success          bool
-	ChangeType       ChangeRequirement
-	Message          string
-	PreviousConfig   *AudioConfig
-	NewConfig        *AudioConfig
-	RequiredRestart  bool
-	ProcessIDChanged bool
-	OldPID           int
-	NewPID           int
-}
 
 // NewAudioEngineReconfiguration creates a new reconfiguration manager
 func NewAudioEngineReconfiguration() *AudioEngineReconfiguration {
@@ -94,21 +59,15 @@ func (r *AudioEngineReconfiguration) requiresProcessRestart(current, new AudioCo
 		return true
 	}
 
-	// Note: AudioOutputDeviceID would also require restart if we had it in AudioConfig
-
 	return false
 }
 
 // requiresChainRebuild checks if changes require audio chain reconfiguration
 func (r *AudioEngineReconfiguration) requiresChainRebuild(current, new AudioConfig) bool {
-	// Currently, most chain-level changes in our architecture require process restart
-	// In a more sophisticated system, these might only require chain rebuild:
-
 	// Input channel changes could potentially be done with chain rebuild
 	if current.AudioInputChannel != new.AudioInputChannel {
 		log.Printf("🔧 Input channel change detected: %d → %d (could use chain rebuild)",
 			current.AudioInputChannel, new.AudioInputChannel)
-		// For now, treat as process restart required
 		return false
 	}
 
@@ -116,7 +75,6 @@ func (r *AudioEngineReconfiguration) requiresChainRebuild(current, new AudioConf
 	if current.PluginPath != new.PluginPath {
 		log.Printf("🔧 Plugin path change detected: %s → %s (could use chain rebuild)",
 			current.PluginPath, new.PluginPath)
-		// This could be handled dynamically via load-plugin commands
 		return false
 	}
 
@@ -196,26 +154,26 @@ func (r *AudioEngineReconfiguration) handleProcessRestart(result *Reconfiguratio
 	var oldPID int
 
 	// Stop current audio-host if running
-	if r.isRunning && audioHostProcess != nil {
-		oldPID = audioHostProcess.pid
+	if r.isRunning && Process != nil {
+		oldPID = Process.pid
 		log.Printf("⏹️ Stopping current audio-host (PID %d)", oldPID)
 
-		if err := audioHostProcess.Stop(); err != nil {
+		if err := Process.Stop(); err != nil {
 			result.Success = false
 			result.Message = fmt.Sprintf("Failed to stop current audio-host: %v", err)
 			return result, err
 		}
 
 		// Clear global state
-		audioHostMutex.Lock()
-		audioHostProcess = nil
-		audioHostMutex.Unlock()
+		Mutex.Lock()
+		Process = nil
+		Mutex.Unlock()
 		r.isRunning = false
 	}
 
 	// Start new audio-host with new configuration
 	log.Printf("🚀 Starting audio-host with new configuration")
-	newProcess, err := startAudioHostProcess(change.NewConfig)
+	newProcess, err := StartAudioHostProcess(change.NewConfig)
 	if err != nil {
 		result.Success = false
 		result.Message = fmt.Sprintf("Failed to start audio-host with new configuration: %v", err)
@@ -223,9 +181,9 @@ func (r *AudioEngineReconfiguration) handleProcessRestart(result *Reconfiguratio
 	}
 
 	// Update global and local state
-	audioHostMutex.Lock()
-	audioHostProcess = newProcess
-	audioHostMutex.Unlock()
+	Mutex.Lock()
+	Process = newProcess
+	Mutex.Unlock()
 
 	r.currentConfig = &change.NewConfig
 	r.isRunning = true
@@ -245,12 +203,6 @@ func (r *AudioEngineReconfiguration) handleProcessRestart(result *Reconfiguratio
 func (r *AudioEngineReconfiguration) handleChainRebuild(result *ReconfigurationResult, change ConfigChange) (*ReconfigurationResult, error) {
 	log.Printf("🔧 Audio chain rebuild required (not yet implemented)")
 
-	// This would involve:
-	// 1. Send "stop" command to audio-host
-	// 2. Reconfigure audio unit parameters
-	// 3. Send "start" command to audio-host
-	// 4. Verify successful reconfiguration
-
 	result.Success = false
 	result.Message = "Chain rebuild not yet implemented - falling back to process restart"
 
@@ -262,7 +214,7 @@ func (r *AudioEngineReconfiguration) handleChainRebuild(result *ReconfigurationR
 func (r *AudioEngineReconfiguration) handleDynamicChange(result *ReconfigurationResult, change ConfigChange) (*ReconfigurationResult, error) {
 	log.Printf("🎵 Applying dynamic configuration change")
 
-	if !r.isRunning || audioHostProcess == nil {
+	if !r.isRunning || Process == nil {
 		result.Success = false
 		result.Message = "Cannot apply dynamic changes - audio-host not running"
 		return result, fmt.Errorf("audio-host not running")
@@ -275,7 +227,7 @@ func (r *AudioEngineReconfiguration) handleDynamicChange(result *Reconfiguration
 			command = "tone on"
 		}
 
-		_, err := audioHostProcess.SendCommand(command)
+		_, err := Process.SendCommand(command)
 		if err != nil {
 			result.Success = false
 			result.Message = fmt.Sprintf("Failed to change test tone: %v", err)
@@ -288,7 +240,7 @@ func (r *AudioEngineReconfiguration) handleDynamicChange(result *Reconfiguration
 	if r.currentConfig.PluginPath != change.NewConfig.PluginPath {
 		// Unload current plugin if any
 		if r.currentConfig.PluginPath != "" {
-			_, err := audioHostProcess.SendCommand("unload-plugin")
+			_, err := Process.SendCommand("unload-plugin")
 			if err != nil {
 				log.Printf("⚠️ Warning: Failed to unload current plugin: %v", err)
 			}
@@ -297,7 +249,7 @@ func (r *AudioEngineReconfiguration) handleDynamicChange(result *Reconfiguration
 		// Load new plugin if specified
 		if change.NewConfig.PluginPath != "" {
 			command := fmt.Sprintf("load-plugin %s", change.NewConfig.PluginPath)
-			_, err := audioHostProcess.SendCommand(command)
+			_, err := Process.SendCommand(command)
 			if err != nil {
 				result.Success = false
 				result.Message = fmt.Sprintf("Failed to load plugin: %v", err)

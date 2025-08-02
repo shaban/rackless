@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/shaban/rackless/audio"
 )
 
 // ConfigChangeRequest represents a request to change audio configuration
 type ConfigChangeRequest struct {
-	Config AudioConfig `json:"config"`
+	Config audio.AudioConfig `json:"config"`
 	Reason string      `json:"reason,omitempty"`
 }
 
@@ -22,13 +24,13 @@ type ConfigChangeResponse struct {
 	ProcessIDChanged bool                   `json:"processIdChanged"`
 	OldPID           int                    `json:"oldPid,omitempty"`
 	NewPID           int                    `json:"newPid,omitempty"`
-	PreviousConfig   *AudioConfig           `json:"previousConfig,omitempty"`
-	NewConfig        *AudioConfig           `json:"newConfig,omitempty"`
-	Details          *ReconfigurationResult `json:"details,omitempty"`
+	PreviousConfig   *audio.AudioConfig           `json:"previousConfig,omitempty"`
+	NewConfig        *audio.AudioConfig           `json:"newConfig,omitempty"`
+	Details          *audio.ReconfigurationResult `json:"details,omitempty"`
 }
 
-// handleConfigChange processes intelligent configuration changes
-func handleConfigChange(w http.ResponseWriter, r *http.Request, audioReconfig *AudioEngineReconfiguration) {
+// handleaudio.ConfigChange processes intelligent configuration changes
+func handleConfigChange(w http.ResponseWriter, r *http.Request, audioReconfig *audio.AudioEngineReconfiguration) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -62,7 +64,7 @@ func handleConfigChange(w http.ResponseWriter, r *http.Request, audioReconfig *A
 	}
 
 	// Apply the configuration change through the reconfiguration manager
-	change := ConfigChange{
+	change := audio.ConfigChange{
 		NewConfig:    request.Config,
 		ChangeReason: request.Reason,
 	}
@@ -105,7 +107,7 @@ func handleConfigChange(w http.ResponseWriter, r *http.Request, audioReconfig *A
 }
 
 // validateAudioConfig performs comprehensive validation of audio configuration
-func validateAudioConfig(config AudioConfig) error {
+func validateAudioConfig(config audio.AudioConfig) error {
 	// Buffer size validation
 	if config.BufferSize != 0 && (config.BufferSize < 32 || config.BufferSize > 1024) {
 		return fmt.Errorf("invalid buffer size: %d (must be 32-1024 samples)", config.BufferSize)
@@ -119,16 +121,16 @@ func validateAudioConfig(config AudioConfig) error {
 	return nil
 }
 
-// changeTypeToString converts ChangeRequirement enum to string
-func changeTypeToString(changeType ChangeRequirement) string {
+// changeTypeToString converts audio.ChangeRequirement enum to string
+func changeTypeToString(changeType audio.ChangeRequirement) string {
 	switch changeType {
-	case NoChangeRequired:
+	case audio.NoChangeRequired:
 		return "no-change"
-	case ChainRebuildRequired:
+	case audio.ChainRebuildRequired:
 		return "chain-rebuild"
-	case ProcessRestartRequired:
+	case audio.ProcessRestartRequired:
 		return "process-restart"
-	case DynamicChangeOnly:
+	case audio.DynamicChangeOnly:
 		return "dynamic-change"
 	default:
 		return "unknown"
@@ -136,7 +138,7 @@ func changeTypeToString(changeType ChangeRequirement) string {
 }
 
 // handleGetCurrentConfig returns the current audio configuration
-func handleGetCurrentConfig(w http.ResponseWriter, r *http.Request, audioReconfig *AudioEngineReconfiguration) {
+func handleGetCurrentConfig(w http.ResponseWriter, r *http.Request, audioReconfig *audio.AudioEngineReconfiguration) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -154,15 +156,15 @@ func handleGetCurrentConfig(w http.ResponseWriter, r *http.Request, audioReconfi
 		"currentConfig": currentConfig,
 	}
 
-	if audioHostProcess != nil {
-		response["processId"] = audioHostProcess.pid
+	if audio.Process != nil {
+		response["processId"] = audio.Process.GetPID()
 	}
 
 	json.NewEncoder(w).Encode(response)
 }
 
 // Legacy handleStartAudio updated to use reconfiguration manager
-func handleStartAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioReconfig *AudioEngineReconfiguration) {
+func handleStartAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioReconfig *audio.AudioEngineReconfiguration) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -171,7 +173,7 @@ func handleStartAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioR
 		return
 	}
 
-	var request StartAudioRequest
+	var request audio.StartAudioRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
@@ -179,7 +181,7 @@ func handleStartAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioR
 
 	config := request.Config
 
-	changeReq := ConfigChange{
+	changeReq := audio.ConfigChange{
 		NewConfig:    config,
 		ChangeReason: "Start audio with specific configuration",
 	}
@@ -215,7 +217,7 @@ func handleStartAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioR
 }
 
 // Update stop handler to notify reconfiguration manager
-func handleStopAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioReconfig *AudioEngineReconfiguration) {
+func handleStopAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioReconfig *audio.AudioEngineReconfiguration) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -224,9 +226,9 @@ func handleStopAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioRe
 		return
 	}
 
-	audioHostMutex.Lock()
-	process := audioHostProcess
-	audioHostMutex.Unlock()
+	audio.Mutex.Lock()
+	process := audio.Process
+	audio.Mutex.Unlock()
 
 	if process == nil {
 		response := map[string]interface{}{
@@ -251,9 +253,9 @@ func handleStopAudioWithReconfig(w http.ResponseWriter, r *http.Request, audioRe
 	}
 
 	// Clear global state
-	audioHostMutex.Lock()
-	audioHostProcess = nil
-	audioHostMutex.Unlock()
+	audio.Mutex.Lock()
+	audio.Process = nil
+	audio.Mutex.Unlock()
 
 	// Notify reconfiguration manager
 	audioReconfig.SetRunning(false)
