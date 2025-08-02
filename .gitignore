@@ -4,6 +4,9 @@ bin/
 *.a
 *.wasm
 
+# Ignore main server binary
+rackless
+
 # Ignore standalone tool executables
 standalone/audio-host/audio-host
 standalone/inspector/inspector  
