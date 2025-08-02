@@ -15,6 +15,12 @@ standalone/devices/devices
 # Ignore Go build cache
 go.sum
 
+# Ignore test binaries and coverage files
+*.test
+coverage.out
+coverage.html
+coverage_*.out
+
 # Ignore macOS system files
 .DS_Store
 **/.DS_Store

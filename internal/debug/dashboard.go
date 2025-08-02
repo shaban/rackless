@@ -108,13 +108,13 @@ func renderAudioStatus(data DashboardData) string {
 		statusClass = "running"
 		processStatus = "RUNNING"
 		pidInfo = fmt.Sprintf("(PID %d)", data.PID)
-		
+
 		if data.EngineRunning {
 			engineStatus = "RUNNING"
 		} else {
 			engineStatus = "STOPPED"
 		}
-		
+
 		if data.StatusDetails != "" {
 			additionalInfo = fmt.Sprintf("<br><strong>Details:</strong> %s", data.StatusDetails)
 		}
@@ -152,12 +152,12 @@ func renderDeviceList(devices []Device) string {
 		if device.IsDeviceOnline() {
 			status = "online"
 		}
-		
+
 		defaultLabel := ""
 		if device.IsDeviceDefault() {
 			defaultLabel = "(DEFAULT)"
 		}
-		
+
 		html.WriteString(fmt.Sprintf(
 			`<div class="device %s"><strong>%d:</strong> %s %s<br><small>Rates: %v</small></div>`,
 			status, device.GetDeviceID(), device.GetName(), defaultLabel, device.GetSupportedSampleRates(),

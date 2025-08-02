@@ -20,11 +20,11 @@ type AudioDevice struct {
 }
 
 // Implement debug.Device interface for AudioDevice
-func (d AudioDevice) GetDeviceID() int              { return d.DeviceID }
-func (d AudioDevice) GetName() string               { return d.Name }
+func (d AudioDevice) GetDeviceID() int               { return d.DeviceID }
+func (d AudioDevice) GetName() string                { return d.Name }
 func (d AudioDevice) GetSupportedSampleRates() []int { return d.SupportedSampleRates }
-func (d AudioDevice) IsDeviceOnline() bool          { return d.IsOnline }
-func (d AudioDevice) IsDeviceDefault() bool         { return d.IsDefault }
+func (d AudioDevice) IsDeviceOnline() bool           { return d.IsOnline }
+func (d AudioDevice) IsDeviceDefault() bool          { return d.IsDefault }
 
 type MIDIDevice struct {
 	UID        string `json:"uid"`

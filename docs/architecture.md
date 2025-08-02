@@ -7,8 +7,9 @@ Rackless is designed as a **single-binary, dual-target** application that can ru
 ## Core Architecture Principles
 
 ### 1. Single Language Consistency
-- **Backend**: Go with Objective-C bridge for AudioUnit APIs
+- **Backend**: Go with JSON communication to standalone Objective-C tools
 - **Frontend**: Go WASM with minimal JavaScript glue
+- **AudioUnit Integration**: Standalone command-line tools (no CGO bridge)
 - **Shared Types**: Same structs for data, API, and templates
 
 ### 2. Direct State Management
@@ -37,17 +38,18 @@ Rackless is designed as a **single-binary, dual-target** application that can ru
 │                     Go Backend Server                       │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐ │
-│  │  AudioUnit      │  │   Parameter     │  │   Layout     │ │
-│  │  Discovery      │  │   Mapping       │  │  Management  │ │
+│  │  JSON Commands  │  │   Parameter     │  │   Layout     │ │
+│  │  via exec.Cmd   │  │   Mapping       │  │  Management  │ │
 │  └─────────────────┘  └─────────────────┘  └──────────────┘ │
 ├─────────────────────────────────────────────────────────────┤
-│                    CGO Bridge                               │
+│              Command-Line JSON Interface                    │
 ├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐  ┌─────────────────┐                   │
-│  │  AudioUnit      │  │  AudioUnit      │                   │
-│  │  Devices        │  │  Inspector      │                   │
-│  │  (Objective-C)  │  │  (Objective-C)  │                   │
-│  └─────────────────┘  └─────────────────┘                   │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐ │
+│  │  audio-host     │  │   inspector     │  │   devices    │ │
+│  │  (Real-time     │  │   (Plugin       │  │  (Device     │ │
+│  │   Processing)   │  │   Discovery)    │  │   Enum)      │ │
+│  │  (Objective-C)  │  │  (Objective-C)  │  │ (Objective-C)│ │
+│  └─────────────────┘  └─────────────────┘  └──────────────┘ │
 ├─────────────────────────────────────────────────────────────┤
 │                    macOS AudioUnit APIs                     │
 └─────────────────────────────────────────────────────────────┘
@@ -56,10 +58,9 @@ Rackless is designed as a **single-binary, dual-target** application that can ru
 ## Data Flow
 
 ### AudioUnit Discovery
-1. Go backend calls Objective-C bridge
-2. Objective-C enumerates AudioComponents
-3. Returns JSON data to Go
-4. Go serves structured data to WASM frontend
+1. Go backend calls standalone command-line tools via exec.Command()
+2. Objective-C tools enumerate AudioComponents and return JSON to stdout
+3. Go parses JSON and serves structured data to WASM frontend
 
 ### Parameter Mapping
 1. User creates mapping in WASM UI
@@ -67,10 +68,12 @@ Rackless is designed as a **single-binary, dual-target** application that can ru
 3. Backend stores mapping and validates parameters
 4. Real-time updates flow through WebSocket
 
+**Note**: See [Audio Validation Reality](audio-validation-reality.md) for current validation behavior vs audio-host capabilities.
+
 ### Real-time Control
 1. MIDI controller or UI control changes value
-2. WASM calculates mapped parameter values
-3. Direct parameter updates via AudioUnit APIs
+2. WASM calculates mapped parameter values  
+3. Backend sends commands to audio-host via stdin/stdout pipes
 4. UI reflects changes immediately
 
 ## Migration Strategy
@@ -81,11 +84,11 @@ Rackless is designed as a **single-binary, dual-target** application that can ru
 - [x] Build system (Makefile)
 - [x] Basic server and WASM stubs
 
-### Phase 2: Audio Bridge (Next)
-- [ ] Extract Objective-C AudioUnit bridge
-- [ ] Port Go audio device enumeration
-- [ ] Port Go AudioUnit introspection
-- [ ] Test bridge functionality
+### Phase 2: Audio Integration (Current)
+- [x] Extract standalone Objective-C command-line tools
+- [x] Port Go audio device enumeration via JSON interface
+- [x] Port Go AudioUnit introspection via JSON interface
+- [x] Bidirectional command-line audio-host for real-time processing
 
 ### Phase 3: WASM Frontend
 - [ ] Basic WASM application structure
@@ -113,8 +116,9 @@ Rackless is designed as a **single-binary, dual-target** application that can ru
 - **Flexibility**: Complete control over appearance and behavior
 - **Responsiveness**: Sub-millisecond parameter updates
 
-### Why Single Binary Architecture?
-- **Deployment**: Single executable contains everything
-- **Development**: Consistent debugging across "backend" and "frontend"
-- **Testing**: Test complete application as a unit
-- **Distribution**: No complex installation procedures
+### Why Standalone Tools over CGO Bridge?
+- **Process Isolation**: Audio crashes don't crash Go server
+- **Development Simplicity**: No CGO complexity, cross-compilation issues
+- **Tool Reusability**: Command-line tools useful for debugging/testing  
+- **JSON Interface**: Clean, typed communication between Go and Objective-C
+- **Real-time Performance**: Direct AudioUnit access in dedicated process

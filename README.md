@@ -104,11 +104,18 @@ make css-watch          # Watch CSS changes
 - **Inspector**: AudioUnit plugin discovery and parameter extraction
 - **Devices**: Audio/MIDI device enumeration
 
+### Known Issues & Current Reality
+
+⚠️ **Validation Gap**: Server validation is currently more restrictive than audio-host capabilities
+- Server rejects some valid configurations that audio-host accepts
+- See [`docs/audio-validation-reality.md`](docs/audio-validation-reality.md) for details
+- Affects buffer sizes and sample rates in particular
+
 ## Migration Status
 
 🚧 **Currently migrating from Vue.js to Go WASM architecture**
 
-See [`docs/migration.md`](docs/migration.md) for detailed migration plan and rationale.
+See [`docs/architecture.md`](docs/architecture.md) for current architecture and design decisions.
 
 ### Why Go WASM?
 
@@ -124,4 +131,4 @@ GNU Affero General Public License v3.0 - see [LICENSE](LICENSE) file for details
 
 ## Contributing
 
-This project is in active development. Check the [issues](../../issues) for current priorities and the [migration plan](docs/migration.md) for architectural decisions.
+This project is in active development. Check the [issues](../../issues) for current priorities and [architecture documentation](docs/architecture.md) for design decisions.
