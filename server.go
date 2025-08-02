@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shaban/rackless/internal/debug"
 )
 
 // Device structures based on standalone/devices output
@@ -27,6 +29,13 @@ type AudioDevice struct {
 	Name                 string `json:"name"`
 	SupportedBitDepths   []int  `json:"supportedBitDepths"`
 }
+
+// Implement debug.Device interface
+func (d AudioDevice) GetDeviceID() int              { return d.DeviceID }
+func (d AudioDevice) GetName() string               { return d.Name }
+func (d AudioDevice) GetSupportedSampleRates() []int { return d.SupportedSampleRates }
+func (d AudioDevice) IsDeviceOnline() bool          { return d.IsOnline }
+func (d AudioDevice) IsDeviceDefault() bool         { return d.IsDefault }
 
 type MIDIDevice struct {
 	UID        string `json:"uid"`
@@ -129,10 +138,10 @@ type DeviceTestRequest struct {
 
 // Device test response with boolean ready state
 type DeviceTestResponse struct {
-	IsAudioReady    bool   `json:"isAudioReady"`
-	ErrorMessage    string `json:"errorMessage,omitempty"`
-	RequiredAction  string `json:"requiredAction,omitempty"`
-	TestedConfig    AudioConfig `json:"testedConfig"`
+	IsAudioReady   bool        `json:"isAudioReady"`
+	ErrorMessage   string      `json:"errorMessage,omitempty"`
+	RequiredAction string      `json:"requiredAction,omitempty"`
+	TestedConfig   AudioConfig `json:"testedConfig"`
 }
 
 // Device switch request for changing audio devices
@@ -145,13 +154,13 @@ type DeviceSwitchRequest struct {
 
 // Device switch response with boolean ready state
 type DeviceSwitchResponse struct {
-	IsAudioReady     bool   `json:"isAudioReady"`
-	ErrorMessage     string `json:"errorMessage,omitempty"`
-	RequiredAction   string `json:"requiredAction,omitempty"`
-	NewConfig        AudioConfig `json:"newConfig"`
-	PreviousProcessRunning  bool   `json:"previousProcessRunning"`
-	ProcessRestarted bool   `json:"processRestarted"`
-	PID              int    `json:"pid,omitempty"`
+	IsAudioReady           bool        `json:"isAudioReady"`
+	ErrorMessage           string      `json:"errorMessage,omitempty"`
+	RequiredAction         string      `json:"requiredAction,omitempty"`
+	NewConfig              AudioConfig `json:"newConfig"`
+	PreviousProcessRunning bool        `json:"previousProcessRunning"`
+	ProcessRestarted       bool        `json:"processRestarted"`
+	PID                    int         `json:"pid,omitempty"`
 }
 
 // AudioHost process management
@@ -315,7 +324,7 @@ func findCompatibleSampleRate(inputDeviceID, outputDeviceID int) (int, error) {
 func testDeviceConfiguration(config AudioConfig) (bool, string, string) {
 	// Step 1: Validate configuration parameters
 	if err := validateSampleRate(config); err != nil {
-		return false, 
+		return false,
 			fmt.Sprintf("Device configuration invalid: %v", err),
 			"Please select compatible audio devices and sample rate"
 	}
@@ -331,7 +340,7 @@ func testDeviceConfiguration(config AudioConfig) (bool, string, string) {
 
 	// Step 3: Audio-host started successfully, clean up immediately
 	tempProcess.Stop()
-	
+
 	return true, "", ""
 }
 
@@ -349,10 +358,10 @@ func switchAudioDevices(config AudioConfig) (bool, string, string, bool, int) {
 		audioHostMutex.Lock()
 		audioHostProcess = nil
 		audioHostMutex.Unlock()
-		
+
 		err := currentProcess.Stop()
 		if err != nil {
-			return false, 
+			return false,
 				fmt.Sprintf("Failed to stop current audio-host: %v", err),
 				"Try manually stopping audio processes or restart the server",
 				wasRunning, 0
@@ -362,7 +371,7 @@ func switchAudioDevices(config AudioConfig) (bool, string, string, bool, int) {
 
 	// Step 3: Validate new configuration
 	if err := validateSampleRate(config); err != nil {
-		return false, 
+		return false,
 			fmt.Sprintf("New device configuration invalid: %v", err),
 			"Please select compatible audio devices and sample rate",
 			wasRunning, 0
@@ -946,7 +955,7 @@ func handleAudioStatus(w http.ResponseWriter, r *http.Request) {
 		output, err := process.SendCommand("status")
 		if err == nil {
 			status["details"] = output
-			
+
 			// Parse engine running state from audio-host status
 			if strings.Contains(output, "running=true") {
 				status["engineRunning"] = true
@@ -1169,24 +1178,35 @@ func handleSwitchDevices(w http.ResponseWriter, r *http.Request) {
 
 func handleDebug(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	
+
 	// Get current audio status
 	audioHostMutex.RLock()
 	process := audioHostProcess
 	audioHostMutex.RUnlock()
+
+	// Convert AudioDevice slices to debug.Device slices
+	inputDevices := make([]debug.Device, len(serverData.Devices.AudioInput))
+	for i, device := range serverData.Devices.AudioInput {
+		inputDevices[i] = device
+	}
 	
+	outputDevices := make([]debug.Device, len(serverData.Devices.AudioOutput))
+	for i, device := range serverData.Devices.AudioOutput {
+		outputDevices[i] = device
+	}
+
 	// Prepare data for the debug dashboard
-	data := DebugDashboardData{
+	data := debug.DashboardData{
 		ProcessRunning: process != nil && process.IsRunning(),
-		InputDevices:   serverData.Devices.AudioInput,
-		OutputDevices:  serverData.Devices.AudioOutput,
+		InputDevices:   inputDevices,
+		OutputDevices:  outputDevices,
 		PluginCount:    len(serverData.Plugins),
 		DefaultInput:   serverData.Devices.Defaults.DefaultInput,
 		DefaultOutput:  serverData.Devices.Defaults.DefaultOutput,
 		DefaultRate:    serverData.Devices.DefaultSampleRate,
 		Timestamp:      serverData.Devices.Timestamp,
 	}
-	
+
 	if data.ProcessRunning {
 		data.PID = process.pid
 		// Try to get engine status
@@ -1198,9 +1218,9 @@ func handleDebug(w http.ResponseWriter, r *http.Request) {
 			data.StatusDetails = fmt.Sprintf("Error getting status: %v", err)
 		}
 	}
-	
+
 	// Generate and write HTML response
-	html := renderDebugDashboard(data)
+	html := debug.RenderHTML(data)
 	w.Write([]byte(html))
 }
 

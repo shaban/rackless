@@ -1,18 +1,27 @@
-package main
+package debug
 
 import (
 	"fmt"
 	"strings"
 )
 
-// DebugDashboardData holds all the data needed for the debug dashboard
-type DebugDashboardData struct {
+// Device represents the minimal interface needed for dashboard rendering
+type Device interface {
+	GetDeviceID() int
+	GetName() string
+	GetSupportedSampleRates() []int
+	IsDeviceOnline() bool
+	IsDeviceDefault() bool
+}
+
+// DashboardData holds all the data needed for the debug dashboard
+type DashboardData struct {
 	ProcessRunning bool
 	PID            int
 	EngineRunning  bool
 	StatusDetails  string
-	InputDevices   []AudioDevice
-	OutputDevices  []AudioDevice
+	InputDevices   []Device
+	OutputDevices  []Device
 	PluginCount    int
 	DefaultInput   int
 	DefaultOutput  int
@@ -20,8 +29,8 @@ type DebugDashboardData struct {
 	Timestamp      string
 }
 
-// renderDebugDashboard generates the complete HTML for the debug dashboard
-func renderDebugDashboard(data DebugDashboardData) string {
+// RenderHTML generates the complete HTML for the debug dashboard
+func RenderHTML(data DashboardData) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
@@ -58,19 +67,19 @@ func renderDebugDashboard(data DebugDashboardData) string {
     <script>%s</script>
 </body>
 </html>`,
-		getDebugDashboardCSS(),
+		getCSS(),
 		renderAudioStatus(data),
 		renderStatusDetails(data),
 		renderQuickActions(),
 		renderDeviceList(data.InputDevices),
 		renderDeviceList(data.OutputDevices),
 		renderServerInfo(data),
-		getDebugDashboardJS(),
+		getJavaScript(),
 	)
 }
 
-// getDebugDashboardCSS returns the CSS styles for the debug dashboard
-func getDebugDashboardCSS() string {
+// getCSS returns the CSS styles for the debug dashboard
+func getCSS() string {
 	return `
         body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #e0e0e0; }
         .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
@@ -88,7 +97,7 @@ func getDebugDashboardCSS() string {
 }
 
 // renderAudioStatus renders the audio system status section
-func renderAudioStatus(data DebugDashboardData) string {
+func renderAudioStatus(data DashboardData) string {
 	statusClass := "stopped"
 	processStatus := "STOPPED"
 	pidInfo := ""
@@ -118,7 +127,7 @@ func renderAudioStatus(data DebugDashboardData) string {
 }
 
 // renderStatusDetails renders the detailed status information
-func renderStatusDetails(data DebugDashboardData) string {
+func renderStatusDetails(data DashboardData) string {
 	if data.ProcessRunning && data.StatusDetails != "" {
 		return fmt.Sprintf("<pre>%s</pre>", data.StatusDetails)
 	}
@@ -136,29 +145,29 @@ func renderQuickActions() string {
 }
 
 // renderDeviceList renders a list of audio devices
-func renderDeviceList(devices []AudioDevice) string {
+func renderDeviceList(devices []Device) string {
 	var html strings.Builder
 	for _, device := range devices {
 		status := "offline"
-		if device.IsOnline {
+		if device.IsDeviceOnline() {
 			status = "online"
 		}
 		
 		defaultLabel := ""
-		if device.IsDefault {
+		if device.IsDeviceDefault() {
 			defaultLabel = "(DEFAULT)"
 		}
 		
 		html.WriteString(fmt.Sprintf(
 			`<div class="device %s"><strong>%d:</strong> %s %s<br><small>Rates: %v</small></div>`,
-			status, device.DeviceID, device.Name, defaultLabel, device.SupportedSampleRates,
+			status, device.GetDeviceID(), device.GetName(), defaultLabel, device.GetSupportedSampleRates(),
 		))
 	}
 	return html.String()
 }
 
 // renderServerInfo renders the server information section
-func renderServerInfo(data DebugDashboardData) string {
+func renderServerInfo(data DashboardData) string {
 	return fmt.Sprintf(`<div class="info">
             <strong>Plugins loaded:</strong> %d<br>
             <strong>Default input:</strong> %d<br>
@@ -168,8 +177,8 @@ func renderServerInfo(data DebugDashboardData) string {
         </div>`, data.PluginCount, data.DefaultInput, data.DefaultOutput, data.DefaultRate, data.Timestamp)
 }
 
-// getDebugDashboardJS returns the JavaScript for the debug dashboard
-func getDebugDashboardJS() string {
+// getJavaScript returns the JavaScript for the debug dashboard
+func getJavaScript() string {
 	return `
         function sendCommand(cmd) {
             fetch('/api/audio/command', {
