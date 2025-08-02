@@ -25,9 +25,8 @@ Rackless is an audio plugin automation system that allows you to map UI controls
 ### Tech Stack
 
 #### Backend (Working)
-- **Go**: Main application logic
-- **Objective-C**: Native AudioUnit API bridge
-- **CGO**: C bridge for Go ↔ Objective-C integration
+- **Go**: Main application server and audio configuration logic
+- **Standalone Tools**: Independent Objective-C command-line utilities
 
 #### Frontend (Migrating)
 - **Go WASM**: Application logic in WebAssembly
@@ -35,30 +34,34 @@ Rackless is an audio plugin automation system that allows you to map UI controls
 - **Canvas API**: Custom audio controls (knobs, sliders, waveforms)
 - **Web MIDI API**: Direct MIDI controller integration
 
+#### Standalone Tools (Production Ready)
+- **Objective-C**: Native AudioUnit API for real-time audio processing
+- **Inspector**: AudioUnit plugin discovery and parameter extraction (JSON output)
+- **Audio Host**: Real-time guitar processing with interactive command-line interface
+- **Devices**: Audio/MIDI device enumeration (JSON output)
+
 ## Project Structure
 
 ```
 rackless/
 ├── README.md
-├── Makefile
+├── Makefile               # Main build system
 ├── go.mod
-├── go.sum
-├── cmd/
-│   ├── server/          # Native backend server
-│   └── wasm/           # WASM frontend application
-├── pkg/
-│   ├── audio/          # Objective-C AudioUnit bridge
-│   ├── introspection/  # AudioUnit parameter logic
-│   ├── mapping/        # Parameter mapping engine
-│   └── ui/            # WASM UI components
-├── web/
-│   ├── static/        # CSS, assets
-│   └── templates/     # Go HTML templates
-├── Archive/           # Previous Vue.js implementation (reference)
-└── docs/
-    ├── architecture.md
-    ├── migration.md
-    └── api.md
+├── *.go                   # Go server application
+├── data/
+│   └── settings.json     # Configuration
+├── docs/
+│   ├── architecture.md
+│   └── *.md             # Technical documentation
+├── frontend/            # Go WASM frontend (migrating)
+│   ├── Makefile
+│   ├── components/
+│   ├── src/
+│   └── static/
+└── standalone/          # Production-ready Objective-C tools
+    ├── audio-host/      # Real-time guitar processing (interactive CLI)
+    ├── inspector/       # AudioUnit plugin discovery
+    └── devices/         # Audio/MIDI device enumeration
 ```
 
 ## Development
@@ -72,15 +75,34 @@ rackless/
 ### Building
 
 ```bash
-# Build native backend
-make build
+# Build main Go server
+make server              # Build and run server
+make server-dev          # Development mode with auto-reload
 
-# Build WASM frontend
-make wasm
+# Build frontend (WASM migration in progress)
+make frontend
 
-# Development with hot reload
-make dev
+# Build standalone tools
+make standalone          # All tools
+cd standalone/audio-host && make    # Just audio-host
+cd standalone/inspector && make     # Just inspector  
+cd standalone/devices && make       # Just devices
+
+# Development workflow
+make server-dev          # Start server in development
+make css-watch          # Watch CSS changes
 ```
+
+### Interactive Tools
+
+**Audio Host** (`standalone/audio-host/`): Bidirectional interactive command-line interface
+- Real-time guitar processing with AudioUnit plugins
+- Commands: `start`, `stop`, `load-plugin`, `tone on/off`, `devices audio-input`
+- Modes: Interactive (default) or command mode (`--command-mode` for stdin/stdout)
+
+**Other Tools**: JSON output to stdout
+- **Inspector**: AudioUnit plugin discovery and parameter extraction
+- **Devices**: Audio/MIDI device enumeration
 
 ## Migration Status
 
@@ -98,7 +120,7 @@ See [`docs/migration.md`](docs/migration.md) for detailed migration plan and rat
 
 ## License
 
-[Choose your license - MIT, Apache 2.0, etc.]
+GNU Affero General Public License v3.0 - see [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
